@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { ChatMessage } from "@/components/ChatMessage";
 import { QuickReplyChips } from "@/components/QuickReplyChips";
-import { Send, ArrowLeft, Zap } from "lucide-react";
+import { JoystickButton } from "@/components/JoystickButton";
+import { TriggerProgress, ControllerCard, MiniJoystick, JoystickController } from "@/components/JoystickElements";
+import { Send, ArrowLeft, Zap, Check, X, Edit3 } from "lucide-react";
 
 interface Message {
   id: number;
@@ -143,38 +144,39 @@ const InterrogationPage: React.FC = () => {
     <div className="min-h-screen relative overflow-hidden flex flex-col bg-background">
       <BackgroundBlobs variant="chat" />
 
-      {/* Header */}
+      {/* Decorative Controller */}
+      <div className="absolute top-40 -right-32 opacity-10 rotate-[20deg] pointer-events-none hidden lg:block">
+        <JoystickController />
+      </div>
+
+      {/* Header with Controller Style */}
       <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
+          <JoystickButton 
+            variant="neutral" 
+            size="sm" 
             onClick={() => navigate("/")}
-            className="rounded-xl"
           >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+            <ArrowLeft className="w-4 h-4" />
+          </JoystickButton>
           <div className="flex items-center gap-3">
-            <div 
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
-              style={{
-                background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
-                boxShadow: "0 4px 12px hsl(211 100% 50% / 0.2)"
-              }}
-            >
-              <Zap className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <JoystickButton variant="primary" size="sm">
+              <Zap className="w-4 h-4" />
+            </JoystickButton>
             <span className="font-bold text-foreground text-lg">Gap Analysis</span>
           </div>
         </div>
 
-        {/* Progress indicator */}
+        {/* Progress indicator - Controller trigger style */}
         <div className="flex items-center gap-4">
-          <div className="hidden md:block text-sm text-muted-foreground font-medium">
-            {gapsResolved} of {totalGaps} gaps resolved
+          <div className="hidden md:flex items-center gap-2">
+            <MiniJoystick variant="accent" className="w-8 h-8" />
+            <span className="text-sm text-muted-foreground font-medium">
+              {gapsResolved}/{totalGaps}
+            </span>
           </div>
           <div className="w-32 md:w-48">
-            <Progress value={progress} className="h-2" />
+            <TriggerProgress value={progress} />
           </div>
         </div>
       </header>
@@ -198,29 +200,42 @@ const InterrogationPage: React.FC = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Quick Replies & Input */}
-        <div className="bg-card rounded-2xl p-4 space-y-4 border border-border shadow-lg">
+        {/* Quick Replies & Input - Controller Style */}
+        <ControllerCard className="space-y-4">
           {gapsResolved < totalGaps && !isTyping && messages.length > 1 && (
-            <QuickReplyChips onReply={handleQuickReply} />
+            <div className="flex flex-wrap gap-3 justify-center">
+              <JoystickButton variant="accent" size="md" onClick={() => handleQuickReply("yes")}>
+                <Check className="w-5 h-5" />
+              </JoystickButton>
+              <JoystickButton variant="neutral" size="md" onClick={() => handleQuickReply("no")}>
+                <X className="w-5 h-5" />
+              </JoystickButton>
+              <JoystickButton variant="primary" size="md" onClick={() => handleQuickReply("edit")}>
+                <Edit3 className="w-5 h-5" />
+              </JoystickButton>
+            </div>
           )}
           
           <div className="flex gap-3">
-            <Input
-              placeholder="Or type your own response..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-              className="flex-1 rounded-xl border-border"
-            />
-            <Button
+            <div className="flex-1 rounded-2xl bg-gradient-to-b from-muted to-secondary border-2 border-border p-1 shadow-[inset_0_4px_12px_rgba(0,0,0,0.08)]">
+              <Input
+                placeholder="Type your response..."
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                className="border-0 bg-card/80 rounded-xl focus-visible:ring-0"
+              />
+            </div>
+            <JoystickButton 
+              variant="primary" 
+              size="md" 
               onClick={handleSendMessage}
               disabled={!inputValue.trim()}
-              className="rounded-xl"
             >
-              <Send className="w-4 h-4" />
-            </Button>
+              <Send className="w-5 h-5" />
+            </JoystickButton>
           </div>
-        </div>
+        </ControllerCard>
       </main>
     </div>
   );

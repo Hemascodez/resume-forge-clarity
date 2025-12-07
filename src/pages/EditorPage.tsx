@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { ATSScoreComparison, ChangesSummary } from "@/components/ATSScoreComparison";
 import { EditableExperienceItem } from "@/components/EditableExperienceItem";
+import { JoystickButton, DialKnob } from "@/components/JoystickButton";
+import { ControllerCard, TriggerProgress, JoystickController, MiniJoystick } from "@/components/JoystickElements";
 import { ArrowLeft, Download, FileText, Briefcase, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -49,32 +51,37 @@ const EditorPage: React.FC = () => {
     <div className="min-h-screen relative overflow-hidden flex flex-col bg-background">
       <BackgroundBlobs variant="editor" />
 
-      {/* Compact Header */}
+      {/* Decorative Controllers */}
+      <div className="absolute -bottom-20 -left-32 opacity-10 rotate-[-10deg] pointer-events-none hidden lg:block">
+        <JoystickController />
+      </div>
+
+      {/* Compact Header with Controller Style */}
       <header className="relative z-10 flex items-center justify-between px-4 md:px-6 py-3 border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/interrogation")} className="rounded-xl h-9 w-9">
+          <JoystickButton 
+            variant="neutral" 
+            size="sm" 
+            onClick={() => navigate("/interrogation")}
+          >
             <ArrowLeft className="w-4 h-4" />
-          </Button>
+          </JoystickButton>
           <div className="flex items-center gap-2">
-            <div 
-              className="w-8 h-8 rounded-lg flex items-center justify-center shadow-md"
-              style={{
-                background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
-                boxShadow: "0 4px 12px hsl(211 100% 50% / 0.2)"
-              }}
-            >
-              <Zap className="w-4 h-4 text-primary-foreground" />
-            </div>
+            <JoystickButton variant="primary" size="sm">
+              <Zap className="w-4 h-4" />
+            </JoystickButton>
             <span className="font-bold text-foreground text-sm hidden md:inline">Final Review</span>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
+          <div className="hidden md:block">
+            <DialKnob rotation={newScore * 3.6} size="sm" />
+          </div>
           <ATSScoreComparison oldScore={oldScore} newScore={newScore} />
-          <Button variant="accent" size="default" className="gap-2">
-            <Download className="w-4 h-4" />
-            <span className="hidden md:inline">Download</span>
-          </Button>
+          <JoystickButton variant="accent" size="md" onClick={() => {}}>
+            <Download className="w-5 h-5" />
+          </JoystickButton>
         </div>
       </header>
 
@@ -137,14 +144,17 @@ interface ChangesPanelProps {
 }
 
 const ChangesPanel: React.FC<ChangesPanelProps> = ({ missing, added, oldScore, newScore }) => (
-  <div className="space-y-4">
-    <h3 className="text-sm font-bold text-foreground">ATS Score Improvement</h3>
-    <ATSScoreComparison oldScore={oldScore} newScore={newScore} />
+  <ControllerCard className="space-y-4">
+    <div className="flex items-center gap-3 mb-4">
+      <MiniJoystick variant="primary" className="w-10 h-10" />
+      <h3 className="text-sm font-bold text-foreground">Score Boost</h3>
+    </div>
+    <TriggerProgress value={newScore} label={`${oldScore}% → ${newScore}%`} />
     <ChangesSummary missing={missing} added={added} />
     <p className="text-xs text-muted-foreground">
-      Click any bullet point in your resume to edit it manually.
+      Click any bullet point to edit manually.
     </p>
-  </div>
+  </ControllerCard>
 );
 
 interface JDPanelProps {
@@ -152,16 +162,11 @@ interface JDPanelProps {
 }
 
 const JDPanel: React.FC<JDPanelProps> = ({ jd }) => (
-  <div className="space-y-4">
+  <ControllerCard className="space-y-4">
     <div className="flex items-center gap-3">
-      <div 
-        className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md flex-shrink-0"
-        style={{
-          background: "linear-gradient(135deg, hsl(220 14% 96%), hsl(220 14% 90%))",
-        }}
-      >
-        <Briefcase className="w-5 h-5 text-muted-foreground" />
-      </div>
+      <JoystickButton variant="neutral" size="sm">
+        <Briefcase className="w-4 h-4" />
+      </JoystickButton>
       <div>
         <h2 className="font-bold text-foreground text-sm">{jd.title}</h2>
         <p className="text-xs text-muted-foreground">{jd.company}</p>
@@ -175,7 +180,7 @@ const JDPanel: React.FC<JDPanelProps> = ({ jd }) => (
         </span>
       ))}
     </div>
-  </div>
+  </ControllerCard>
 );
 
 interface ResumePanelProps {
@@ -185,18 +190,12 @@ interface ResumePanelProps {
 }
 
 const ResumePanel: React.FC<ResumePanelProps> = ({ resume, experience, onUpdateExperience }) => (
-  <div className="space-y-5">
+  <ControllerCard hasGlow className="space-y-5">
     {/* Header */}
     <div className="flex items-center gap-3">
-      <div 
-        className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0"
-        style={{
-          background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
-          boxShadow: "0 8px 24px hsl(211 100% 50% / 0.3)"
-        }}
-      >
-        <FileText className="w-6 h-6 text-primary-foreground" />
-      </div>
+      <JoystickButton variant="primary" size="lg">
+        <FileText className="w-6 h-6" />
+      </JoystickButton>
       <div>
         <h2 className="font-bold text-foreground text-lg">{resume.name}</h2>
         <p className="text-sm text-primary font-medium">{resume.title}</p>
@@ -237,7 +236,7 @@ const ResumePanel: React.FC<ResumePanelProps> = ({ resume, experience, onUpdateE
         ))}
       </div>
     </div>
-  </div>
+  </ControllerCard>
 );
 
 export default EditorPage;
