@@ -13,7 +13,27 @@ import { cn } from "@/lib/utils";
 const mockJD = {
   title: "Senior Frontend Engineer",
   company: "TechCorp Inc.",
+  location: "San Francisco, CA (Hybrid)",
+  type: "Full-time",
+  salary: "$150,000 - $200,000",
   skills: ["React", "TypeScript", "GraphQL", "React Native", "CI/CD", "Team Leadership"],
+  description: "We are looking for a Senior Frontend Engineer to join our growing team and help build the next generation of our product platform.",
+  responsibilities: [
+    "Lead the development of customer-facing React applications",
+    "Architect scalable frontend solutions using TypeScript and GraphQL",
+    "Build and maintain cross-platform mobile features with React Native",
+    "Establish and maintain CI/CD pipelines for automated deployments",
+    "Mentor junior developers and conduct code reviews",
+    "Collaborate with product and design teams to deliver exceptional UX",
+  ],
+  requirements: [
+    "5+ years of experience with React and TypeScript",
+    "Strong understanding of GraphQL and REST APIs",
+    "Experience with React Native for mobile development",
+    "Familiarity with CI/CD tools like GitHub Actions or Jenkins",
+    "Excellent communication and leadership skills",
+    "Bachelor's degree in Computer Science or equivalent experience",
+  ],
 };
 
 const initialExperience = [
@@ -60,7 +80,7 @@ const EditorPage: React.FC = () => {
       <header className="relative z-10 flex items-center justify-between px-4 md:px-6 py-3 border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <JoystickButton 
-            variant="neutral" 
+            variant="primary" 
             size="sm" 
             onClick={() => navigate("/interrogation")}
           >
@@ -80,7 +100,8 @@ const EditorPage: React.FC = () => {
           </div>
           <ATSScoreComparison oldScore={oldScore} newScore={newScore} />
           <JoystickButton variant="accent" size="md" onClick={() => {}}>
-            <Download className="w-5 h-5" />
+            <Download className="w-4 h-4 mr-2" />
+            <span className="font-semibold text-sm">Download Resume</span>
           </JoystickButton>
         </div>
       </header>
@@ -164,7 +185,7 @@ interface JDPanelProps {
 const JDPanel: React.FC<JDPanelProps> = ({ jd }) => (
   <ControllerCard className="space-y-4">
     <div className="flex items-center gap-3">
-      <JoystickButton variant="neutral" size="sm">
+      <JoystickButton variant="primary" size="sm">
         <Briefcase className="w-4 h-4" />
       </JoystickButton>
       <div>
@@ -173,12 +194,47 @@ const JDPanel: React.FC<JDPanelProps> = ({ jd }) => (
       </div>
     </div>
 
-    <div className="flex flex-wrap gap-1.5">
-      {jd.skills.map((skill, i) => (
-        <span key={i} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-          {skill}
-        </span>
-      ))}
+    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+      <span className="px-2 py-1 bg-secondary rounded-md">{jd.location}</span>
+      <span className="px-2 py-1 bg-secondary rounded-md">{jd.type}</span>
+      <span className="px-2 py-1 bg-accent/10 text-accent rounded-md font-medium">{jd.salary}</span>
+    </div>
+
+    <p className="text-xs text-foreground leading-relaxed">{jd.description}</p>
+
+    <div>
+      <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">Key Skills</h4>
+      <div className="flex flex-wrap gap-1.5">
+        {jd.skills.map((skill, i) => (
+          <span key={i} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+            {skill}
+          </span>
+        ))}
+      </div>
+    </div>
+
+    <div>
+      <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">Responsibilities</h4>
+      <ul className="space-y-1.5">
+        {jd.responsibilities.map((item, i) => (
+          <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <div>
+      <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">Requirements</h4>
+      <ul className="space-y-1.5">
+        {jd.requirements.map((item, i) => (
+          <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent mt-1.5 shrink-0" />
+            {item}
+          </li>
+        ))}
+      </ul>
     </div>
   </ControllerCard>
 );
