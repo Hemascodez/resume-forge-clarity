@@ -90,7 +90,7 @@ const EditorPage: React.FC = () => {
             </TabsList>
             
             <TabsContent value="changes" className="flex-1 p-4 overflow-y-auto">
-              <ChangesPanel missing={missingSkills} added={addedSkills} />
+              <ChangesPanel missing={missingSkills} added={addedSkills} oldScore={oldScore} newScore={newScore} />
             </TabsContent>
             <TabsContent value="jd" className="flex-1 p-4 overflow-y-auto">
               <JDPanel jd={mockJD} />
@@ -105,7 +105,7 @@ const EditorPage: React.FC = () => {
         <div className="hidden md:grid md:grid-cols-12 h-full divide-x divide-border/30">
           {/* Left: Changes Summary (narrow) */}
           <div className="col-span-3 p-4 overflow-y-auto">
-            <ChangesPanel missing={missingSkills} added={addedSkills} />
+            <ChangesPanel missing={missingSkills} added={addedSkills} oldScore={oldScore} newScore={newScore} />
           </div>
 
           {/* Center: Resume (main focus) */}
@@ -126,11 +126,14 @@ const EditorPage: React.FC = () => {
 interface ChangesPanelProps {
   missing: string[];
   added: string[];
+  oldScore: number;
+  newScore: number;
 }
 
-const ChangesPanel: React.FC<ChangesPanelProps> = ({ missing, added }) => (
+const ChangesPanel: React.FC<ChangesPanelProps> = ({ missing, added, oldScore, newScore }) => (
   <div className="space-y-4">
-    <h3 className="text-sm font-semibold text-foreground">What Changed</h3>
+    <h3 className="text-sm font-semibold text-foreground">ATS Score Improvement</h3>
+    <ATSScoreComparison oldScore={oldScore} newScore={newScore} />
     <ChangesSummary missing={missing} added={added} />
     <p className="text-xs text-muted-foreground">
       Click any bullet point in your resume to edit it manually.
