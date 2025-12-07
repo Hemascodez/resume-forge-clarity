@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { FileUploadZone } from "@/components/FileUploadZone";
+import { JoystickButton, DialKnob } from "@/components/JoystickButton";
 import { Sparkles, Zap, Shield, ArrowRight } from "lucide-react";
 
 const LandingPage: React.FC = () => {
@@ -27,17 +28,16 @@ const LandingPage: React.FC = () => {
 
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 md:px-12 py-6">
-        <div className="flex items-center gap-3">
-          <div 
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
-              boxShadow: "0 8px 24px hsl(211 100% 50% / 0.3)"
-            }}
-          >
-            <Zap className="w-6 h-6 text-primary-foreground" />
-          </div>
+        <div className="flex items-center gap-4">
+          <JoystickButton variant="primary" size="md">
+            <Zap className="w-6 h-6" />
+          </JoystickButton>
           <span className="text-2xl font-bold text-foreground">ResumeAI</span>
+        </div>
+        
+        {/* Decorative dial */}
+        <div className="hidden md:block">
+          <DialKnob rotation={45} size="sm" />
         </div>
       </header>
 
@@ -144,36 +144,33 @@ const LandingPage: React.FC = () => {
                 icon: Shield,
                 title: "No Hallucinations",
                 description: "Every skill addition is verified with you first. No fake credentials.",
-                gradient: "from-primary to-primary/80",
-                shadow: "hsl(211 100% 50% / 0.2)"
+                variant: "primary" as const
               },
               {
                 icon: Sparkles,
                 title: "Smart Gap Analysis",
                 description: "AI identifies missing skills and asks clarifying questions.",
-                gradient: "from-accent to-accent/80",
-                shadow: "hsl(142 76% 45% / 0.2)"
+                variant: "accent" as const
               },
               {
                 icon: Zap,
                 title: "Instant Polish",
                 description: "Get a perfectly tailored resume in minutes, not hours.",
-                gradient: "from-primary to-accent",
-                shadow: "hsl(211 100% 50% / 0.15)"
+                variant: "neutral" as const
               },
             ].map((feature, i) => (
               <div
                 key={i}
-                className="bg-card rounded-2xl p-6 text-center border border-border shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+                className="bg-card/80 backdrop-blur-sm rounded-3xl p-8 text-center border border-border shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
               >
-                <div 
-                  className={`w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-gradient-to-br ${feature.gradient}`}
-                  style={{ boxShadow: `0 8px 24px ${feature.shadow}` }}
-                >
-                  <feature.icon className="w-7 h-7 text-primary-foreground" />
+                {/* Joystick-style 3D button */}
+                <div className="mx-auto mb-6 flex justify-center">
+                  <JoystickButton variant={feature.variant} size="lg">
+                    <feature.icon className="w-8 h-8" />
+                  </JoystickButton>
                 </div>
-                <h3 className="font-bold text-foreground mb-2 text-lg">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <h3 className="font-bold text-foreground mb-3 text-xl">{feature.title}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
               </div>
             ))}
           </div>
