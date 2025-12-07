@@ -5,30 +5,30 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-semibold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02]",
+          "bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02]",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl",
         outline:
-          "border-2 border-border bg-transparent text-foreground hover:bg-secondary hover:border-primary rounded-xl",
+          "border-2 border-border bg-background text-foreground hover:bg-secondary hover:border-primary/30 rounded-xl",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-xl",
         ghost:
           "text-foreground hover:bg-secondary hover:text-foreground rounded-xl",
         link:
           "text-primary underline-offset-4 hover:underline",
-        // Hero gradient button with neon glow
-        hero: "bg-gradient-primary text-primary-foreground rounded-2xl shadow-lg hover:shadow-xl hover:scale-[1.02] glow-cyan font-bold tracking-wide",
-        // Neon outline button
-        neon: "border-2 border-neon-cyan bg-transparent text-foreground hover:bg-primary/10 rounded-2xl transition-all duration-300",
+        // Airbnb-style hero button with gradient
+        hero: "bg-gradient-primary text-primary-foreground rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] font-bold tracking-wide",
+        // Success/accent button with neon green
+        accent: "bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl shadow-md hover:shadow-lg",
         // Quick reply chip style
-        chip: "bg-secondary/60 text-foreground border border-border/50 hover:border-primary hover:bg-primary/10 hover:text-primary rounded-full backdrop-blur-sm transition-all duration-200",
-        // Glass button
-        glass: "glass text-foreground hover:bg-card/60 rounded-xl",
+        chip: "bg-secondary text-foreground border border-border hover:border-primary hover:bg-primary/5 hover:text-primary rounded-full transition-all duration-200",
+        // Soft subtle button
+        soft: "bg-primary/10 text-primary hover:bg-primary/20 rounded-xl",
       },
       size: {
         default: "h-11 px-6 py-2",

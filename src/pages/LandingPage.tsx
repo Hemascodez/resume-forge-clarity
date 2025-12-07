@@ -13,7 +13,6 @@ const LandingPage: React.FC = () => {
 
   const handleInitialize = () => {
     if (jobDescription && resumeFile) {
-      // Store data and navigate to chat
       sessionStorage.setItem("jobDescription", jobDescription);
       sessionStorage.setItem("resumeFileName", resumeFile.name);
       navigate("/interrogation");
@@ -23,16 +22,22 @@ const LandingPage: React.FC = () => {
   const isReady = jobDescription.trim().length > 50 && resumeFile;
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden bg-background">
       <BackgroundBlobs variant="landing" />
 
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 md:px-12 py-6">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center glow-cyan">
-            <Zap className="w-5 h-5 text-primary-foreground" />
+        <div className="flex items-center gap-3">
+          <div 
+            className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
+            style={{
+              background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
+              boxShadow: "0 8px 24px hsl(211 100% 50% / 0.3)"
+            }}
+          >
+            <Zap className="w-6 h-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground">ResumeAI</span>
+          <span className="text-2xl font-bold text-foreground">ResumeAI</span>
         </div>
       </header>
 
@@ -41,14 +46,14 @@ const LandingPage: React.FC = () => {
         <div className="max-w-4xl mx-auto">
           {/* Hero Text */}
           <div className="text-center mb-12 md:mb-16 animate-fade-in">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-border/50 mb-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 mb-6">
               <Sparkles className="w-4 h-4 text-accent" />
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm font-medium text-accent">
                 Human-in-the-Loop AI Verification
               </span>
             </div>
             
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-foreground">
               Tailor your resume with{" "}
               <span className="text-gradient">verified accuracy</span>
             </h1>
@@ -63,9 +68,15 @@ const LandingPage: React.FC = () => {
           <div className="grid md:grid-cols-2 gap-6 md:gap-8 mb-8 animate-slide-up" style={{ animationDelay: "0.1s" }}>
             {/* Job Description Zone */}
             <div className="space-y-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center">
-                  <span className="text-xs text-primary font-bold">1</span>
+              <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                <div 
+                  className="w-8 h-8 rounded-xl flex items-center justify-center shadow-md"
+                  style={{
+                    background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
+                    boxShadow: "0 4px 12px hsl(211 100% 50% / 0.2)"
+                  }}
+                >
+                  <span className="text-sm text-primary-foreground font-bold">1</span>
                 </div>
                 Target Job Description
               </label>
@@ -73,7 +84,7 @@ const LandingPage: React.FC = () => {
                 placeholder="Paste the job description here... Include the role title, requirements, and key responsibilities."
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
-                className="min-h-[240px]"
+                className="min-h-[240px] rounded-2xl border-2 border-border bg-card shadow-sm focus:border-primary focus:ring-0 resize-none"
               />
               <p className="text-xs text-muted-foreground">
                 {jobDescription.length} characters
@@ -83,9 +94,15 @@ const LandingPage: React.FC = () => {
 
             {/* Resume Upload Zone */}
             <div className="space-y-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <div className="w-6 h-6 rounded-lg bg-accent/20 flex items-center justify-center">
-                  <span className="text-xs text-accent font-bold">2</span>
+              <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
+                <div 
+                  className="w-8 h-8 rounded-xl flex items-center justify-center shadow-md"
+                  style={{
+                    background: "linear-gradient(135deg, hsl(142 76% 45%), hsl(142 76% 55%))",
+                    boxShadow: "0 4px 12px hsl(142 76% 45% / 0.2)"
+                  }}
+                >
+                  <span className="text-sm text-accent-foreground font-bold">2</span>
                 </div>
                 Your Current Resume
               </label>
@@ -127,26 +144,35 @@ const LandingPage: React.FC = () => {
                 icon: Shield,
                 title: "No Hallucinations",
                 description: "Every skill addition is verified with you first. No fake credentials.",
+                gradient: "from-primary to-primary/80",
+                shadow: "hsl(211 100% 50% / 0.2)"
               },
               {
                 icon: Sparkles,
                 title: "Smart Gap Analysis",
                 description: "AI identifies missing skills and asks clarifying questions.",
+                gradient: "from-accent to-accent/80",
+                shadow: "hsl(142 76% 45% / 0.2)"
               },
               {
                 icon: Zap,
                 title: "Instant Polish",
                 description: "Get a perfectly tailored resume in minutes, not hours.",
+                gradient: "from-primary to-accent",
+                shadow: "hsl(211 100% 50% / 0.15)"
               },
             ].map((feature, i) => (
               <div
                 key={i}
-                className="glass rounded-2xl p-6 text-center hover:bg-card/60 transition-all duration-300"
+                className="bg-card rounded-2xl p-6 text-center border border-border shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
               >
-                <div className="w-12 h-12 rounded-xl bg-gradient-primary mx-auto mb-4 flex items-center justify-center">
-                  <feature.icon className="w-6 h-6 text-primary-foreground" />
+                <div 
+                  className={`w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-gradient-to-br ${feature.gradient}`}
+                  style={{ boxShadow: `0 8px 24px ${feature.shadow}` }}
+                >
+                  <feature.icon className="w-7 h-7 text-primary-foreground" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
+                <h3 className="font-bold text-foreground mb-2 text-lg">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground">{feature.description}</p>
               </div>
             ))}
