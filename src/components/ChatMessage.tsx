@@ -1,5 +1,5 @@
 import React from "react";
-import { Bot, Sparkles } from "lucide-react";
+import { Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChatMessageProps {
@@ -23,16 +23,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       )}
     >
       {isAI && (
-        <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center glow-cyan">
+        <div 
+          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+          style={{
+            background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
+            boxShadow: "0 4px 12px hsl(211 100% 50% / 0.3)"
+          }}
+        >
           <Bot className="w-5 h-5 text-primary-foreground" />
         </div>
       )}
 
       <div
         className={cn(
-          "max-w-[80%] md:max-w-[70%] rounded-2xl px-5 py-4 backdrop-blur-sm",
+          "max-w-[80%] md:max-w-[70%] rounded-2xl px-5 py-4 shadow-md",
           isAI
-            ? "glass border-l-2 border-l-primary/50"
+            ? "bg-card border border-border"
             : "bg-primary text-primary-foreground"
         )}
       >
@@ -48,8 +54,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       </div>
 
       {!isAI && (
-        <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-          <Sparkles className="w-5 h-5 text-accent" />
+        <div 
+          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+          style={{
+            background: "linear-gradient(135deg, hsl(142 76% 45%), hsl(142 76% 55%))",
+            boxShadow: "0 4px 12px hsl(142 76% 45% / 0.3)"
+          }}
+        >
+          <User className="w-5 h-5 text-accent-foreground" />
         </div>
       )}
     </div>

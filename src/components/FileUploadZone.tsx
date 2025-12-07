@@ -53,7 +53,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   return (
     <div
       className={cn(
-        "relative group cursor-pointer transition-all duration-500",
+        "relative group cursor-pointer transition-all duration-300",
         className
       )}
       onDragOver={handleDragOver}
@@ -69,36 +69,40 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
       
       <div
         className={cn(
-          "relative flex flex-col items-center justify-center gap-4 p-8 md:p-12 rounded-3xl border-2 border-dashed transition-all duration-500 min-h-[200px]",
+          "relative flex flex-col items-center justify-center gap-4 p-8 md:p-12 rounded-2xl border-2 border-dashed transition-all duration-300 min-h-[200px]",
           isDragging
-            ? "border-primary bg-primary/10 scale-[1.02] pulse-glow"
+            ? "border-primary bg-primary/5 scale-[1.02]"
             : uploadedFile
-            ? "border-neon-lime bg-neon-lime/5 glow-lime"
-            : "border-border bg-secondary/20 hover:border-primary/50 hover:bg-secondary/30"
+            ? "border-accent bg-accent/5"
+            : "border-border bg-secondary/30 hover:border-primary/50 hover:bg-secondary/50"
         )}
       >
-        {/* Gradient border overlay when dragging */}
-        {isDragging && (
-          <div className="absolute inset-0 rounded-3xl bg-gradient-primary opacity-20 animate-pulse" />
-        )}
-
+        {/* 3D Icon Container */}
         <div
           className={cn(
-            "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300",
+            "w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg",
             uploadedFile
-              ? "bg-neon-lime/20"
+              ? "bg-gradient-to-br from-accent to-accent/80"
               : isDragging
-              ? "bg-primary/20"
-              : "bg-secondary/50 group-hover:bg-secondary"
+              ? "bg-gradient-to-br from-primary to-primary/80"
+              : "bg-gradient-to-br from-secondary to-secondary/80 group-hover:from-primary/10 group-hover:to-primary/5"
           )}
+          style={{
+            transform: isDragging ? "translateY(-4px)" : "translateY(0)",
+            boxShadow: uploadedFile 
+              ? "0 8px 24px hsl(142 76% 45% / 0.3)" 
+              : isDragging 
+              ? "0 8px 24px hsl(211 100% 50% / 0.3)"
+              : "0 4px 12px hsl(220 13% 91% / 0.5)"
+          }}
         >
           {uploadedFile ? (
-            <Check className="w-8 h-8 text-neon-lime" />
+            <Check className="w-10 h-10 text-accent-foreground" />
           ) : (
             <Upload
               className={cn(
-                "w-8 h-8 transition-all duration-300",
-                isDragging ? "text-primary scale-110" : "text-muted-foreground"
+                "w-10 h-10 transition-all duration-300",
+                isDragging ? "text-primary-foreground" : "text-muted-foreground group-hover:text-primary"
               )}
             />
           )}
@@ -106,8 +110,8 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
 
         {uploadedFile ? (
           <div className="text-center">
-            <div className="flex items-center gap-2 text-foreground font-medium">
-              <FileText className="w-4 h-4 text-neon-lime" />
+            <div className="flex items-center gap-2 text-foreground font-semibold">
+              <FileText className="w-4 h-4 text-accent" />
               {uploadedFile.name}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
@@ -116,7 +120,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           </div>
         ) : (
           <div className="text-center">
-            <p className="text-foreground font-medium">
+            <p className="text-foreground font-semibold text-lg">
               {isDragging ? "Drop your resume here" : "Upload your resume"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">

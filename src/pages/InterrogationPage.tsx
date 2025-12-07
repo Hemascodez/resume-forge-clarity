@@ -32,7 +32,6 @@ const InterrogationPage: React.FC = () => {
   const [gapsResolved, setGapsResolved] = useState(0);
   const totalGaps = mockQuestions.length;
 
-  // Initial AI greeting
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsTyping(true);
@@ -47,7 +46,6 @@ const InterrogationPage: React.FC = () => {
         ]);
         setIsTyping(false);
         
-        // Ask first question after greeting
         setTimeout(() => {
           setIsTyping(true);
           setTimeout(() => {
@@ -64,7 +62,6 @@ const InterrogationPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
@@ -85,7 +82,6 @@ const InterrogationPage: React.FC = () => {
     setMessages((prev) => [...prev, userMessage]);
     setGapsResolved((prev) => prev + 1);
 
-    // Move to next question or finish
     if (currentQuestion < totalGaps - 1) {
       setIsTyping(true);
       setTimeout(() => {
@@ -106,7 +102,6 @@ const InterrogationPage: React.FC = () => {
         setIsTyping(false);
       }, 1500);
     } else {
-      // All questions answered
       setIsTyping(true);
       setTimeout(() => {
         setMessages((prev) => [
@@ -120,7 +115,6 @@ const InterrogationPage: React.FC = () => {
         ]);
         setIsTyping(false);
         
-        // Navigate to editor after brief delay
         setTimeout(() => {
           navigate("/editor");
         }, 2000);
@@ -140,18 +134,17 @@ const InterrogationPage: React.FC = () => {
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
     
-    // Treat custom input as "edit" response
     handleQuickReply("edit");
   };
 
   const progress = ((gapsResolved) / totalGaps) * 100;
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex flex-col">
+    <div className="min-h-screen relative overflow-hidden flex flex-col bg-background">
       <BackgroundBlobs variant="chat" />
 
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-border/30 glass">
+      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -161,21 +154,27 @@ const InterrogationPage: React.FC = () => {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Zap className="w-4 h-4 text-primary-foreground" />
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-md"
+              style={{
+                background: "linear-gradient(135deg, hsl(211 100% 50%), hsl(211 100% 60%))",
+                boxShadow: "0 4px 12px hsl(211 100% 50% / 0.2)"
+              }}
+            >
+              <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-foreground">Gap Analysis</span>
+            <span className="font-bold text-foreground text-lg">Gap Analysis</span>
           </div>
         </div>
 
         {/* Progress indicator */}
         <div className="flex items-center gap-4">
-          <div className="hidden md:block text-sm text-muted-foreground">
+          <div className="hidden md:block text-sm text-muted-foreground font-medium">
             {gapsResolved} of {totalGaps} gaps resolved
           </div>
           <div className="w-32 md:w-48">
-            <Progress value={progress} />
+            <Progress value={progress} className="h-2" />
           </div>
         </div>
       </header>
@@ -200,7 +199,7 @@ const InterrogationPage: React.FC = () => {
         </div>
 
         {/* Quick Replies & Input */}
-        <div className="glass-strong rounded-2xl p-4 space-y-4">
+        <div className="bg-card rounded-2xl p-4 space-y-4 border border-border shadow-lg">
           {gapsResolved < totalGaps && !isTyping && messages.length > 1 && (
             <QuickReplyChips onReply={handleQuickReply} />
           )}
@@ -211,7 +210,7 @@ const InterrogationPage: React.FC = () => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-              className="flex-1"
+              className="flex-1 rounded-xl border-border"
             />
             <Button
               onClick={handleSendMessage}
