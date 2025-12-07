@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { FileUploadZone } from "@/components/FileUploadZone";
-import { JoystickButton, DialKnob } from "@/components/JoystickButton";
+import { JoystickButton, DialKnob, DPad } from "@/components/JoystickButton";
+import { JoystickController, MiniJoystick, ControllerCard } from "@/components/JoystickElements";
 import { Sparkles, Zap, Shield, ArrowRight } from "lucide-react";
 
 const LandingPage: React.FC = () => {
@@ -26,6 +27,14 @@ const LandingPage: React.FC = () => {
     <div className="min-h-screen relative overflow-hidden bg-background">
       <BackgroundBlobs variant="landing" />
 
+      {/* Decorative Controller Elements */}
+      <div className="absolute top-20 -left-20 opacity-20 rotate-[-15deg] pointer-events-none">
+        <JoystickController />
+      </div>
+      <div className="absolute bottom-20 -right-20 opacity-15 rotate-[15deg] pointer-events-none hidden lg:block">
+        <JoystickController />
+      </div>
+
       {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 md:px-12 py-6">
         <div className="flex items-center gap-4">
@@ -35,8 +44,9 @@ const LandingPage: React.FC = () => {
           <span className="text-2xl font-bold text-foreground">ResumeAI</span>
         </div>
         
-        {/* Decorative dial */}
-        <div className="hidden md:block">
+        {/* Decorative controls */}
+        <div className="hidden md:flex items-center gap-4">
+          <MiniJoystick variant="accent" />
           <DialKnob rotation={45} size="sm" />
         </div>
       </header>
@@ -137,7 +147,7 @@ const LandingPage: React.FC = () => {
             )}
           </div>
 
-          {/* Features */}
+          {/* Features with Controller Cards */}
           <div className="grid md:grid-cols-3 gap-6 mt-16 md:mt-24 animate-fade-in" style={{ animationDelay: "0.3s" }}>
             {[
               {
@@ -159,9 +169,10 @@ const LandingPage: React.FC = () => {
                 variant: "neutral" as const
               },
             ].map((feature, i) => (
-              <div
+              <ControllerCard
                 key={i}
-                className="bg-card/80 backdrop-blur-sm rounded-3xl p-8 text-center border border-border shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                hasGlow={feature.variant === "primary"}
+                className="text-center hover:-translate-y-2 transition-all duration-300"
               >
                 {/* Joystick-style 3D button */}
                 <div className="mx-auto mb-6 flex justify-center">
@@ -171,8 +182,13 @@ const LandingPage: React.FC = () => {
                 </div>
                 <h3 className="font-bold text-foreground mb-3 text-xl">{feature.title}</h3>
                 <p className="text-muted-foreground">{feature.description}</p>
-              </div>
+              </ControllerCard>
             ))}
+          </div>
+
+          {/* Decorative D-Pad */}
+          <div className="hidden lg:flex justify-center mt-16 opacity-30">
+            <DPad />
           </div>
         </div>
       </main>
