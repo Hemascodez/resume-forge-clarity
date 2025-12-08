@@ -41,7 +41,7 @@ serve(async (req) => {
     console.log('Fetched HTML length:', html.length);
 
     // Use Lovable AI to extract job description from HTML
-    const aiResponse = await fetch("https://ai.lovable.dev/v1/gateway/chat/completions", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
