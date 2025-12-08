@@ -11,19 +11,19 @@ import { cn } from "@/lib/utils";
 import { FileText, Download, X, Check, Sparkles } from "lucide-react";
 import { JoystickButton } from "@/components/JoystickButton";
 
-export type TemplateType = 'modern' | 'classic' | 'minimal' | 'executive';
+export type TemplateType = 'creative' | 'professional' | 'sidebar' | 'bold' | 'compact';
 
 interface TemplateOption {
   id: TemplateType;
   name: string;
   description: string;
   bestFor: string;
-  preview: React.ReactNode;
 }
 
 interface ExperienceEntry {
   title: string;
   company: string;
+  date?: string;
   bullets: string[];
 }
 
@@ -34,9 +34,15 @@ interface ResumeTemplateSelectorProps {
   resumeData: {
     name: string;
     title: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+    summary?: string;
     skills: string[];
+    tools?: string[];
     experience: { text: string; isModified: boolean }[];
     originalExperience?: ExperienceEntry[];
+    education?: { degree: string; school: string; date?: string }[];
   };
   jobTitle?: string;
   company?: string;
@@ -44,104 +50,143 @@ interface ResumeTemplateSelectorProps {
   originalSkills: string[];
 }
 
+// Mini preview component for template cards
 const TemplatePreview: React.FC<{
   template: TemplateType;
   resumeData: ResumeTemplateSelectorProps['resumeData'];
   confirmedSkills: string[];
   originalSkills: string[];
-  jobTitle?: string;
-  company?: string;
-}> = ({ template, resumeData, confirmedSkills, originalSkills, jobTitle, company }) => {
+}> = ({ template, resumeData, confirmedSkills, originalSkills }) => {
   const newSkills = confirmedSkills.filter(
     skill => !originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
   );
-
   const allSkills = [...originalSkills, ...newSkills];
 
-  if (template === 'modern') {
+  if (template === 'creative') {
     return (
-      <div className="bg-card p-4 rounded-lg border border-border text-[8px] leading-tight">
-        <div className="border-l-4 border-primary pl-3 mb-3">
-          <h1 className="text-[12px] font-bold text-foreground">{resumeData.name}</h1>
-          <p className="text-primary font-medium">{resumeData.title}</p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 mb-2">
-          {allSkills.slice(0, 6).map((s, i) => (
-            <span key={i} className="bg-primary/10 text-primary px-1 py-0.5 rounded text-center truncate">
-              {s}
-            </span>
-          ))}
-        </div>
-        <div className="space-y-1">
-          {resumeData.experience.slice(0, 2).map((exp, i) => (
-            <div key={i} className="border-l-2 border-accent pl-2">
-              <p className="text-muted-foreground truncate">• {exp.text.slice(0, 40)}...</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (template === 'classic') {
-    return (
-      <div className="bg-card p-4 rounded-lg border border-border text-[8px] leading-tight">
-        <div className="text-center border-b border-border pb-2 mb-2">
-          <h1 className="text-[12px] font-bold text-foreground uppercase tracking-wider">{resumeData.name}</h1>
-          <p className="text-muted-foreground">{resumeData.title}</p>
-        </div>
-        <div className="mb-2">
-          <h3 className="font-bold uppercase text-[7px] tracking-wider border-b border-border mb-1">Skills</h3>
-          <p className="text-muted-foreground">{allSkills.slice(0, 5).join(' • ')}</p>
-        </div>
-        <div>
-          <h3 className="font-bold uppercase text-[7px] tracking-wider border-b border-border mb-1">Experience</h3>
-          {resumeData.experience.slice(0, 2).map((exp, i) => (
-            <p key={i} className="text-muted-foreground">• {exp.text.slice(0, 35)}...</p>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (template === 'minimal') {
-    return (
-      <div className="bg-card p-4 rounded-lg border border-border text-[8px] leading-tight">
-        <div className="mb-3">
-          <h1 className="text-[12px] font-bold text-foreground">{resumeData.name}</h1>
-          <p className="text-muted-foreground text-[7px]">{resumeData.title} • {allSkills.slice(0, 3).join(', ')}</p>
-        </div>
-        <div className="space-y-2">
-          {resumeData.experience.slice(0, 3).map((exp, i) => (
-            <p key={i} className="text-muted-foreground">
-              {exp.text.slice(0, 50)}...
-            </p>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Executive
-  return (
-    <div className="bg-card p-4 rounded-lg border-2 border-primary/20 text-[8px] leading-tight">
-      <div className="bg-primary/5 -m-4 mb-2 p-3 border-b border-primary/20">
-        <h1 className="text-[12px] font-bold text-foreground">{resumeData.name}</h1>
-        <p className="text-primary font-semibold">{resumeData.title}</p>
-      </div>
-      <div className="grid grid-cols-2 gap-2 mb-2 pt-2">
-        <div>
-          <h3 className="font-bold text-primary text-[7px] mb-1">Core Competencies</h3>
-          <div className="space-y-0.5">
+      <div className="bg-card p-2 rounded border border-border text-[6px] leading-tight h-24 overflow-hidden">
+        <div className="flex gap-1 h-full">
+          <div className="flex-1">
+            <p className="font-bold text-[8px] text-foreground truncate">{resumeData.name}</p>
+            <p className="text-muted-foreground text-[5px]">{resumeData.title}</p>
+            <p className="text-[5px] text-muted-foreground mt-1 italic truncate">{resumeData.summary?.slice(0, 30)}...</p>
+            <p className="font-semibold mt-1 text-foreground">Experience</p>
+            <p className="text-muted-foreground truncate">• {resumeData.experience[0]?.text.slice(0, 25)}...</p>
+          </div>
+          <div className="w-1/3 bg-secondary/50 p-1 rounded text-[5px]">
+            <p className="font-semibold text-foreground">Contact</p>
+            <p className="text-muted-foreground truncate">{resumeData.email}</p>
+            <p className="font-semibold text-foreground mt-1">Skills</p>
             {allSkills.slice(0, 3).map((s, i) => (
-              <p key={i} className="text-muted-foreground">✓ {s}</p>
+              <p key={i} className="text-muted-foreground">• {s}</p>
             ))}
           </div>
         </div>
-        <div>
-          <h3 className="font-bold text-primary text-[7px] mb-1">Achievements</h3>
-          {resumeData.experience.slice(0, 2).map((exp, i) => (
-            <p key={i} className="text-muted-foreground truncate">• {exp.text.slice(0, 25)}...</p>
+      </div>
+    );
+  }
+
+  if (template === 'professional') {
+    return (
+      <div className="bg-card p-2 rounded border border-border text-[6px] leading-tight h-24 overflow-hidden">
+        <div className="flex justify-between mb-1">
+          <div>
+            <p className="font-bold text-[8px] text-foreground">{resumeData.name},</p>
+            <p className="font-bold text-[7px] text-foreground">{resumeData.title}</p>
+          </div>
+          <div className="text-right text-[5px] text-muted-foreground">
+            <p>{resumeData.email}</p>
+            <p>{resumeData.phone}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <p className="font-semibold text-foreground">Experience</p>
+            <p className="text-muted-foreground truncate">• {resumeData.experience[0]?.text.slice(0, 20)}...</p>
+          </div>
+          <div className="w-1/3">
+            <p className="font-semibold text-foreground">Skills</p>
+            {allSkills.slice(0, 3).map((s, i) => (
+              <p key={i} className="text-muted-foreground truncate">• {s}</p>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (template === 'sidebar') {
+    return (
+      <div className="bg-card p-2 rounded border border-border text-[6px] leading-tight h-24 overflow-hidden">
+        <div className="flex gap-1 h-full">
+          <div className="w-1/3 bg-secondary/50 p-1 rounded text-[5px]">
+            <p className="font-bold text-[7px] text-foreground truncate">{resumeData.name},</p>
+            <p className="text-muted-foreground text-[5px]">{resumeData.title}</p>
+            <p className="font-semibold text-foreground mt-1">Contact</p>
+            <p className="text-muted-foreground truncate">{resumeData.email}</p>
+            <p className="font-semibold text-foreground mt-1">Skills</p>
+            {allSkills.slice(0, 2).map((s, i) => (
+              <p key={i} className="text-muted-foreground truncate">• {s}</p>
+            ))}
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-foreground">Experience</p>
+            <p className="text-muted-foreground truncate">• {resumeData.experience[0]?.text.slice(0, 30)}...</p>
+            <p className="font-semibold text-foreground mt-1">Education</p>
+            <p className="text-muted-foreground truncate">{resumeData.education?.[0]?.degree}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (template === 'bold') {
+    return (
+      <div className="bg-card p-2 rounded border border-border text-[6px] leading-tight h-24 overflow-hidden">
+        <div className="flex justify-between mb-1">
+          <div>
+            <p className="font-bold text-[8px] text-foreground">{resumeData.name},</p>
+            <p className="font-bold text-[7px] text-foreground">{resumeData.title}</p>
+          </div>
+          <div className="text-right text-[5px] text-muted-foreground">
+            <p>{resumeData.email}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <p className="text-[5px] text-muted-foreground italic truncate">{resumeData.summary?.slice(0, 40)}...</p>
+            <p className="font-semibold text-foreground mt-1 border-b border-border">WORK EXPERIENCE</p>
+            <p className="text-muted-foreground truncate">• {resumeData.experience[0]?.text.slice(0, 20)}...</p>
+          </div>
+          <div className="w-1/3">
+            <p className="font-semibold text-foreground border-b border-border">SKILLS</p>
+            {allSkills.slice(0, 3).map((s, i) => (
+              <p key={i} className="text-muted-foreground truncate">{s}</p>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Compact template
+  return (
+    <div className="bg-card p-2 rounded border border-border text-[6px] leading-tight h-24 overflow-hidden">
+      <div className="flex gap-1 h-full">
+        <div className="w-2/5">
+          <p className="font-bold text-[8px] text-foreground truncate">{resumeData.name}</p>
+          <p className="text-[5px] text-muted-foreground">{resumeData.title}</p>
+          <p className="font-semibold text-foreground mt-1 border-b border-border text-[5px]">EDUCATION</p>
+          <p className="text-muted-foreground truncate">{resumeData.education?.[0]?.degree}</p>
+          <p className="font-semibold text-foreground mt-1 border-b border-border text-[5px]">CONTACT</p>
+          <p className="text-muted-foreground truncate">{resumeData.email}</p>
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-foreground border-b border-border text-[5px]">WORK EXPERIENCE</p>
+          <p className="text-muted-foreground truncate">• {resumeData.experience[0]?.text.slice(0, 25)}...</p>
+          <p className="font-semibold text-foreground mt-1 border-b border-border text-[5px]">SKILLS</p>
+          {allSkills.slice(0, 2).map((s, i) => (
+            <p key={i} className="text-muted-foreground truncate">• {s}</p>
           ))}
         </div>
       </div>
@@ -159,36 +204,38 @@ export const ResumeTemplateSelector: React.FC<ResumeTemplateSelectorProps> = ({
   confirmedSkills,
   originalSkills,
 }) => {
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('modern');
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('creative');
 
   const templates: TemplateOption[] = [
     {
-      id: 'modern',
-      name: 'Modern',
-      description: 'Clean design with accent colors and sidebar layout',
-      bestFor: 'Tech, Startups, Design',
-      preview: null,
+      id: 'creative',
+      name: 'Creative',
+      description: 'Two-column with right sidebar for contact & skills',
+      bestFor: 'Design, Tech, Startups',
     },
     {
-      id: 'classic',
-      name: 'Classic',
-      description: 'Traditional format that works with all ATS systems',
-      bestFor: 'Corporate, Finance, Legal',
-      preview: null,
+      id: 'professional',
+      name: 'Professional',
+      description: 'Header with contact, two-column body layout',
+      bestFor: 'Corporate, Business, Finance',
     },
     {
-      id: 'minimal',
-      name: 'Minimal',
-      description: 'Simple, text-focused layout for maximum readability',
-      bestFor: 'Academics, Consulting, Research',
-      preview: null,
+      id: 'sidebar',
+      name: 'Sidebar',
+      description: 'Left sidebar with contact & skills, main content right',
+      bestFor: 'Marketing, Creative, Consulting',
     },
     {
-      id: 'executive',
-      name: 'Executive',
-      description: 'Premium look for senior positions',
-      bestFor: 'Leadership, C-Suite, Directors',
-      preview: null,
+      id: 'bold',
+      name: 'Bold',
+      description: 'Summary focused with underlined section headers',
+      bestFor: 'Leadership, Senior Roles, Executive',
+    },
+    {
+      id: 'compact',
+      name: 'Compact',
+      description: 'Education first, clean two-column layout',
+      bestFor: 'Academics, Research, Recent Grads',
     },
   ];
 
@@ -197,9 +244,14 @@ export const ResumeTemplateSelector: React.FC<ResumeTemplateSelectorProps> = ({
     onOpenChange(false);
   };
 
+  const newSkills = confirmedSkills.filter(
+    skill => !originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...originalSkills, ...newSkills];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 gap-0">
+      <DialogContent className="max-w-5xl max-h-[90vh] p-0 gap-0">
         <DialogHeader className="px-6 py-4 border-b border-border bg-secondary/30">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -214,24 +266,24 @@ export const ResumeTemplateSelector: React.FC<ResumeTemplateSelectorProps> = ({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 max-h-[60vh]">
+        <ScrollArea className="flex-1 max-h-[65vh]">
           <div className="p-6">
-            {/* Template Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {/* Template Grid - 5 templates */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
               {templates.map((template) => (
                 <button
                   key={template.id}
                   onClick={() => setSelectedTemplate(template.id)}
                   className={cn(
-                    "relative rounded-xl border-2 p-3 transition-all hover:border-primary/50 text-left",
+                    "relative rounded-xl border-2 p-2 transition-all hover:border-primary/50 text-left",
                     selectedTemplate === template.id
                       ? "border-primary bg-primary/5 shadow-lg"
                       : "border-border bg-card hover:bg-secondary/50"
                   )}
                 >
                   {selectedTemplate === template.id && (
-                    <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                      <Check className="w-4 h-4 text-primary-foreground" />
+                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center z-10">
+                      <Check className="w-3 h-3 text-primary-foreground" />
                     </div>
                   )}
                   <TemplatePreview
@@ -239,13 +291,11 @@ export const ResumeTemplateSelector: React.FC<ResumeTemplateSelectorProps> = ({
                     resumeData={resumeData}
                     confirmedSkills={confirmedSkills}
                     originalSkills={originalSkills}
-                    jobTitle={jobTitle}
-                    company={company}
                   />
-                  <div className="mt-3">
-                    <h3 className="font-semibold text-foreground text-sm">{template.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">{template.description}</p>
-                    <Badge variant="secondary" className="mt-2 text-[10px]">
+                  <div className="mt-2">
+                    <h3 className="font-semibold text-foreground text-xs">{template.name}</h3>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{template.description}</p>
+                    <Badge variant="secondary" className="mt-1.5 text-[9px] px-1.5 py-0">
                       {template.bestFor}
                     </Badge>
                   </div>
@@ -259,41 +309,50 @@ export const ResumeTemplateSelector: React.FC<ResumeTemplateSelectorProps> = ({
                 <FileText className="w-4 h-4" />
                 Preview: {templates.find(t => t.id === selectedTemplate)?.name} Template
               </h3>
-              <div className="bg-card border border-border rounded-lg p-6 max-w-2xl mx-auto shadow-lg">
-                {selectedTemplate === 'modern' && (
-                  <ModernTemplatePreview
+              <div className="bg-card border border-border rounded-lg p-6 max-w-3xl mx-auto shadow-lg">
+                {selectedTemplate === 'creative' && (
+                  <CreativeTemplatePreview
                     resumeData={resumeData}
                     confirmedSkills={confirmedSkills}
                     originalSkills={originalSkills}
-                    jobTitle={jobTitle}
-                    company={company}
+                    allSkills={allSkills}
+                    newSkills={newSkills}
                   />
                 )}
-                {selectedTemplate === 'classic' && (
-                  <ClassicTemplatePreview
+                {selectedTemplate === 'professional' && (
+                  <ProfessionalTemplatePreview
                     resumeData={resumeData}
                     confirmedSkills={confirmedSkills}
                     originalSkills={originalSkills}
-                    jobTitle={jobTitle}
-                    company={company}
+                    allSkills={allSkills}
+                    newSkills={newSkills}
                   />
                 )}
-                {selectedTemplate === 'minimal' && (
-                  <MinimalTemplatePreview
+                {selectedTemplate === 'sidebar' && (
+                  <SidebarTemplatePreview
                     resumeData={resumeData}
                     confirmedSkills={confirmedSkills}
                     originalSkills={originalSkills}
-                    jobTitle={jobTitle}
-                    company={company}
+                    allSkills={allSkills}
+                    newSkills={newSkills}
                   />
                 )}
-                {selectedTemplate === 'executive' && (
-                  <ExecutiveTemplatePreview
+                {selectedTemplate === 'bold' && (
+                  <BoldTemplatePreview
                     resumeData={resumeData}
                     confirmedSkills={confirmedSkills}
                     originalSkills={originalSkills}
-                    jobTitle={jobTitle}
-                    company={company}
+                    allSkills={allSkills}
+                    newSkills={newSkills}
+                  />
+                )}
+                {selectedTemplate === 'compact' && (
+                  <CompactTemplatePreview
+                    resumeData={resumeData}
+                    confirmedSkills={confirmedSkills}
+                    originalSkills={originalSkills}
+                    allSkills={allSkills}
+                    newSkills={newSkills}
                   />
                 )}
               </div>
@@ -335,242 +394,396 @@ interface FullPreviewProps {
   resumeData: ResumeTemplateSelectorProps['resumeData'];
   confirmedSkills: string[];
   originalSkills: string[];
-  jobTitle?: string;
-  company?: string;
+  allSkills: string[];
+  newSkills: string[];
 }
 
-const ModernTemplatePreview: React.FC<FullPreviewProps> = ({
+// Template 1: Creative - Two column with right sidebar
+const CreativeTemplatePreview: React.FC<FullPreviewProps> = ({
   resumeData,
-  confirmedSkills,
-  originalSkills,
-  jobTitle,
-  company,
+  allSkills,
+  newSkills,
 }) => {
-  const newSkills = confirmedSkills.filter(
-    skill => !originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
-  );
-  const allSkills = [...originalSkills, ...newSkills];
-
   return (
-    <div className="text-xs">
-      {jobTitle && company && (
-        <p className="text-[10px] text-muted-foreground italic text-right mb-4">
-          Tailored for: {jobTitle} at {company}
-        </p>
-      )}
-      <div className="border-l-4 border-primary pl-4 mb-4">
-        <h1 className="text-xl font-bold text-foreground">{resumeData.name}</h1>
-        <p className="text-primary font-semibold">{resumeData.title}</p>
-        <p className="text-muted-foreground text-[10px]">email@example.com • (555) 123-4567</p>
-      </div>
+    <div className="text-xs flex gap-6">
+      {/* Left main content */}
+      <div className="flex-1">
+        <h1 className="text-2xl font-bold text-foreground">{resumeData.name}</h1>
+        <p className="text-muted-foreground mb-3">{resumeData.title}</p>
+        
+        {resumeData.summary && (
+          <p className="text-muted-foreground italic mb-4 text-[11px]">{resumeData.summary}</p>
+        )}
 
-      <div className="mb-4">
-        <h2 className="text-sm font-bold text-foreground border-b border-primary/30 pb-1 mb-2">Skills</h2>
-        <div className="flex flex-wrap gap-1.5">
-          {allSkills.map((skill, i) => (
-            <span
-              key={i}
-              className={cn(
-                "px-2 py-0.5 rounded text-[10px]",
-                newSkills.includes(skill)
-                  ? "bg-accent/20 text-accent border border-accent/30"
-                  : "bg-primary/10 text-primary"
-              )}
-            >
-              {skill}{newSkills.includes(skill) && ' ✓'}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-sm font-bold text-foreground border-b border-primary/30 pb-1 mb-2">Experience</h2>
-        {resumeData.originalExperience?.map((exp, i) => (
+        <h2 className="text-sm font-bold text-foreground mb-2">Work Experience</h2>
+        {resumeData.originalExperience?.slice(0, 2).map((exp, i) => (
           <div key={i} className="mb-3">
-            <div className="flex justify-between items-baseline">
-              <h3 className="font-semibold text-foreground">{exp.title}</h3>
-              <span className="text-muted-foreground text-[10px]">{exp.company}</span>
+            <div className="flex items-baseline gap-1">
+              <span className="font-semibold text-foreground">{exp.title}</span>
+              <span className="text-foreground">@ {exp.company}</span>
             </div>
+            {exp.date && <p className="text-[10px] text-muted-foreground uppercase">{exp.date}</p>}
             <ul className="mt-1 space-y-0.5">
               {exp.bullets.slice(0, 3).map((bullet, j) => (
-                <li key={j} className="flex items-start gap-1.5 text-muted-foreground">
-                  <span className="w-1 h-1 rounded-full bg-primary mt-1.5 shrink-0" />
-                  {bullet}
+                <li key={j} className="text-muted-foreground flex items-start gap-1">
+                  <span>•</span>
+                  <span>{bullet}</span>
                 </li>
               ))}
             </ul>
           </div>
         ))}
-        {resumeData.experience.filter(e => e.isModified).length > 0 && (
-          <div className="mt-2 pt-2 border-t border-dashed border-accent/30">
-            <p className="text-[10px] text-accent font-medium mb-1">✨ Verified Additions:</p>
+
+        {resumeData.education && resumeData.education.length > 0 && (
+          <>
+            <h2 className="text-sm font-bold text-foreground mb-2 mt-4">Education</h2>
+            {resumeData.education.map((edu, i) => (
+              <div key={i} className="mb-2">
+                <p className="font-semibold text-foreground">{edu.degree} @ {edu.school}</p>
+                {edu.date && <p className="text-[10px] text-muted-foreground uppercase">{edu.date}</p>}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Right sidebar */}
+      <div className="w-1/3 bg-secondary/50 p-4 rounded-lg">
+        <h3 className="font-bold text-foreground mb-2">Contact</h3>
+        {resumeData.website && <p className="text-muted-foreground text-[11px]">{resumeData.website}</p>}
+        {resumeData.email && <p className="text-muted-foreground text-[11px]">{resumeData.email}</p>}
+        {resumeData.phone && <p className="text-muted-foreground text-[11px] mb-3">{resumeData.phone}</p>}
+
+        <h3 className="font-bold text-foreground mb-2 mt-3">Skills</h3>
+        <ul className="space-y-0.5">
+          {allSkills.map((skill, i) => (
+            <li key={i} className={cn(
+              "text-[11px]",
+              newSkills.includes(skill) ? "text-accent font-medium" : "text-muted-foreground"
+            )}>
+              • {skill}{newSkills.includes(skill) && ' ✓'}
+            </li>
+          ))}
+        </ul>
+
+        {resumeData.tools && resumeData.tools.length > 0 && (
+          <>
+            <h3 className="font-bold text-foreground mb-2 mt-3">Tools</h3>
             <ul className="space-y-0.5">
-              {resumeData.experience.filter(e => e.isModified).slice(0, 3).map((exp, i) => (
-                <li key={i} className="flex items-start gap-1.5 text-accent">
-                  <span className="w-1 h-1 rounded-full bg-accent mt-1.5 shrink-0" />
-                  {exp.text}
-                </li>
+              {resumeData.tools.map((tool, i) => (
+                <li key={i} className="text-muted-foreground text-[11px]">• {tool}</li>
               ))}
             </ul>
-          </div>
+          </>
         )}
       </div>
     </div>
   );
 };
 
-const ClassicTemplatePreview: React.FC<FullPreviewProps> = ({
+// Template 2: Professional - Header with contact right
+const ProfessionalTemplatePreview: React.FC<FullPreviewProps> = ({
   resumeData,
-  confirmedSkills,
-  originalSkills,
-  jobTitle,
-  company,
+  allSkills,
+  newSkills,
 }) => {
-  const newSkills = confirmedSkills.filter(
-    skill => !originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
-  );
-  const allSkills = [...originalSkills, ...newSkills];
-
   return (
     <div className="text-xs">
-      {jobTitle && company && (
-        <p className="text-[10px] text-muted-foreground italic text-right mb-2">
-          Tailored for: {jobTitle} at {company}
-        </p>
-      )}
-      <div className="text-center border-b-2 border-foreground pb-3 mb-4">
-        <h1 className="text-xl font-bold text-foreground uppercase tracking-widest">{resumeData.name}</h1>
-        <p className="text-muted-foreground">{resumeData.title}</p>
-        <p className="text-muted-foreground text-[10px]">email@example.com | (555) 123-4567 | Location</p>
+      {/* Header */}
+      <div className="flex justify-between items-start mb-4 pb-3 border-b border-border">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{resumeData.name},</h1>
+          <p className="text-lg font-bold text-foreground">{resumeData.title}</p>
+        </div>
+        <div className="text-right text-muted-foreground">
+          {resumeData.website && <p>{resumeData.website}</p>}
+          {resumeData.email && <p>{resumeData.email}</p>}
+          {resumeData.phone && <p>{resumeData.phone}</p>}
+        </div>
       </div>
 
-      <div className="mb-4">
-        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider border-b border-foreground mb-2">
-          Professional Skills
-        </h2>
-        <p className="text-muted-foreground">{allSkills.join(' • ')}</p>
-      </div>
-
-      <div>
-        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider border-b border-foreground mb-2">
-          Professional Experience
-        </h2>
-        {resumeData.originalExperience?.map((exp, i) => (
-          <div key={i} className="mb-3">
-            <div className="flex justify-between">
-              <h3 className="font-semibold text-foreground">{exp.title}</h3>
-              <span className="text-muted-foreground">{exp.company}</span>
+      {/* Body */}
+      <div className="flex gap-6">
+        <div className="flex-1">
+          <h2 className="text-sm font-bold text-foreground mb-2">Work Experience</h2>
+          {resumeData.originalExperience?.slice(0, 2).map((exp, i) => (
+            <div key={i} className="mb-3">
+              <p><span className="font-semibold text-foreground">{exp.company}</span> <span className="text-muted-foreground">{exp.title}</span></p>
+              {exp.date && <p className="text-[10px] text-muted-foreground uppercase">{exp.date}</p>}
+              <ul className="mt-1 space-y-0.5">
+                {exp.bullets.slice(0, 3).map((bullet, j) => (
+                  <li key={j} className="text-muted-foreground">• {bullet}</li>
+                ))}
+              </ul>
             </div>
-            <ul className="mt-1">
+          ))}
+
+          {resumeData.education && resumeData.education.length > 0 && (
+            <>
+              <h2 className="text-sm font-bold text-foreground mb-2 mt-4">Education</h2>
+              {resumeData.education.map((edu, i) => (
+                <div key={i} className="mb-2">
+                  <p><span className="font-semibold text-foreground">{edu.school}</span> <span className="text-muted-foreground">{edu.degree}</span></p>
+                  {edu.date && <p className="text-[10px] text-muted-foreground uppercase">{edu.date}</p>}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="w-1/3">
+          <h2 className="text-sm font-bold text-foreground mb-2">Skills</h2>
+          <ul className="space-y-0.5">
+            {allSkills.map((skill, i) => (
+              <li key={i} className={cn(
+                "text-[11px]",
+                newSkills.includes(skill) ? "text-accent font-medium" : "text-muted-foreground"
+              )}>
+                • {skill}{newSkills.includes(skill) && ' ✓'}
+              </li>
+            ))}
+          </ul>
+
+          {resumeData.tools && resumeData.tools.length > 0 && (
+            <>
+              <h2 className="text-sm font-bold text-foreground mb-2 mt-4">Tools</h2>
+              <ul className="space-y-0.5">
+                {resumeData.tools.map((tool, i) => (
+                  <li key={i} className="text-muted-foreground text-[11px]">• {tool}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Template 3: Sidebar - Left sidebar
+const SidebarTemplatePreview: React.FC<FullPreviewProps> = ({
+  resumeData,
+  allSkills,
+  newSkills,
+}) => {
+  return (
+    <div className="text-xs flex gap-6">
+      {/* Left sidebar */}
+      <div className="w-1/3 bg-secondary/50 p-4 rounded-lg">
+        <h1 className="text-lg font-bold text-foreground">{resumeData.name},</h1>
+        <p className="text-foreground font-semibold mb-4">{resumeData.title}</p>
+
+        <h3 className="font-bold text-foreground mb-2">Contact</h3>
+        {resumeData.website && <p className="text-muted-foreground text-[11px]">{resumeData.website}</p>}
+        {resumeData.email && <p className="text-muted-foreground text-[11px]">{resumeData.email}</p>}
+        {resumeData.phone && <p className="text-muted-foreground text-[11px] mb-3">{resumeData.phone}</p>}
+
+        <h3 className="font-bold text-foreground mb-2 mt-3">Skills</h3>
+        <ul className="space-y-0.5">
+          {allSkills.map((skill, i) => (
+            <li key={i} className={cn(
+              "text-[11px]",
+              newSkills.includes(skill) ? "text-accent font-medium" : "text-muted-foreground"
+            )}>
+              • {skill}{newSkills.includes(skill) && ' ✓'}
+            </li>
+          ))}
+        </ul>
+
+        {resumeData.tools && resumeData.tools.length > 0 && (
+          <>
+            <h3 className="font-bold text-foreground mb-2 mt-3">Tools</h3>
+            <ul className="space-y-0.5">
+              {resumeData.tools.map((tool, i) => (
+                <li key={i} className="text-muted-foreground text-[11px]">• {tool}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+
+      {/* Right main content */}
+      <div className="flex-1">
+        <h2 className="text-sm font-bold text-foreground mb-2">Work Experience</h2>
+        {resumeData.originalExperience?.slice(0, 2).map((exp, i) => (
+          <div key={i} className="mb-3">
+            <p><span className="font-semibold text-foreground">{exp.company}</span> <span className="text-muted-foreground">{exp.title}</span></p>
+            {exp.date && <p className="text-[10px] text-muted-foreground uppercase">{exp.date}</p>}
+            <ul className="mt-1 space-y-0.5">
               {exp.bullets.slice(0, 3).map((bullet, j) => (
                 <li key={j} className="text-muted-foreground">• {bullet}</li>
               ))}
             </ul>
           </div>
         ))}
+
+        {resumeData.education && resumeData.education.length > 0 && (
+          <>
+            <h2 className="text-sm font-bold text-foreground mb-2 mt-4">Education</h2>
+            {resumeData.education.map((edu, i) => (
+              <div key={i} className="mb-2">
+                <p><span className="font-semibold text-foreground">{edu.school}</span> <span className="text-muted-foreground">{edu.degree}</span></p>
+                {edu.date && <p className="text-[10px] text-muted-foreground uppercase">{edu.date}</p>}
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
 };
 
-const MinimalTemplatePreview: React.FC<FullPreviewProps> = ({
+// Template 4: Bold - Summary with underlined headers
+const BoldTemplatePreview: React.FC<FullPreviewProps> = ({
   resumeData,
-  confirmedSkills,
-  originalSkills,
-  jobTitle,
-  company,
+  allSkills,
+  newSkills,
 }) => {
-  const newSkills = confirmedSkills.filter(
-    skill => !originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
-  );
-  const allSkills = [...originalSkills, ...newSkills];
-
   return (
     <div className="text-xs">
-      {jobTitle && company && (
-        <p className="text-[10px] text-muted-foreground italic mb-4">
-          For: {jobTitle}, {company}
-        </p>
-      )}
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-foreground">{resumeData.name}</h1>
-        <p className="text-muted-foreground">{resumeData.title} • {allSkills.slice(0, 4).join(', ')}</p>
+      {/* Header */}
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{resumeData.name},</h1>
+          <p className="text-lg font-bold text-foreground">{resumeData.title}</p>
+        </div>
+        <div className="text-right text-muted-foreground">
+          {resumeData.website && <p>{resumeData.website}</p>}
+          {resumeData.email && <p>{resumeData.email}</p>}
+          {resumeData.phone && <p>{resumeData.phone}</p>}
+        </div>
       </div>
 
-      <div className="space-y-3">
-        {resumeData.originalExperience?.map((exp, i) => (
-          <div key={i}>
-            <p className="font-semibold text-foreground">{exp.title} — {exp.company}</p>
-            {exp.bullets.slice(0, 2).map((bullet, j) => (
-              <p key={j} className="text-muted-foreground ml-4">• {bullet}</p>
+      {/* Body */}
+      <div className="flex gap-6">
+        <div className="flex-1">
+          {resumeData.summary && (
+            <p className="font-semibold text-foreground mb-4">{resumeData.summary}</p>
+          )}
+
+          <h2 className="text-sm font-bold text-foreground mb-2 pb-1 border-b border-foreground">WORK EXPERIENCE</h2>
+          {resumeData.originalExperience?.slice(0, 2).map((exp, i) => (
+            <div key={i} className="mb-3">
+              <p><span className="font-semibold text-foreground">{exp.company}</span> <span className="text-muted-foreground">{exp.title}</span></p>
+              {exp.date && <p className="text-[10px] text-muted-foreground uppercase">{exp.date}</p>}
+              <ul className="mt-1 space-y-0.5">
+                {exp.bullets.slice(0, 3).map((bullet, j) => (
+                  <li key={j} className="text-muted-foreground">• {bullet}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+
+          {resumeData.education && resumeData.education.length > 0 && (
+            <>
+              <h2 className="text-sm font-bold text-foreground mb-2 mt-4 pb-1 border-b border-foreground">EDUCATION</h2>
+              {resumeData.education.map((edu, i) => (
+                <div key={i} className="mb-2">
+                  <p><span className="font-semibold text-foreground">{edu.school}</span> <span className="text-muted-foreground">{edu.degree}</span></p>
+                  {edu.date && <p className="text-[10px] text-muted-foreground uppercase">{edu.date}</p>}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="w-1/3">
+          <h2 className="text-sm font-bold text-foreground mb-2 pb-1 border-b border-foreground">SKILLS</h2>
+          <ul className="space-y-0.5">
+            {allSkills.map((skill, i) => (
+              <li key={i} className={cn(
+                "text-[11px]",
+                newSkills.includes(skill) ? "text-accent font-medium" : "text-muted-foreground"
+              )}>
+                {skill}{newSkills.includes(skill) && ' ✓'}
+              </li>
             ))}
+          </ul>
+
+          {resumeData.tools && resumeData.tools.length > 0 && (
+            <>
+              <h2 className="text-sm font-bold text-foreground mb-2 mt-4 pb-1 border-b border-foreground">TOOLS</h2>
+              <ul className="space-y-0.5">
+                {resumeData.tools.map((tool, i) => (
+                  <li key={i} className="text-muted-foreground text-[11px]">{tool}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Template 5: Compact - Education first
+const CompactTemplatePreview: React.FC<FullPreviewProps> = ({
+  resumeData,
+  allSkills,
+  newSkills,
+}) => {
+  return (
+    <div className="text-xs flex gap-6">
+      {/* Left column */}
+      <div className="w-2/5">
+        <h1 className="text-2xl font-bold text-foreground">{resumeData.name}</h1>
+        <p className="text-muted-foreground mb-4">{resumeData.title}</p>
+
+        {resumeData.education && resumeData.education.length > 0 && (
+          <>
+            <h2 className="text-sm font-bold text-foreground mb-2 pb-1 border-b border-foreground">EDUCATION</h2>
+            {resumeData.education.map((edu, i) => (
+              <div key={i} className="mb-2">
+                <p className="font-semibold text-foreground">{edu.degree} @ {edu.school}</p>
+                {edu.date && <p className="text-[10px] text-muted-foreground uppercase">{edu.date}</p>}
+              </div>
+            ))}
+          </>
+        )}
+
+        <h2 className="text-sm font-bold text-foreground mb-2 mt-4 pb-1 border-b border-foreground">CONTACT</h2>
+        {resumeData.website && <p className="text-muted-foreground">Website: {resumeData.website}</p>}
+        {resumeData.email && <p className="text-muted-foreground">Email: {resumeData.email}</p>}
+        {resumeData.phone && <p className="text-muted-foreground">Phone: {resumeData.phone}</p>}
+      </div>
+
+      {/* Right column */}
+      <div className="flex-1">
+        <h2 className="text-sm font-bold text-foreground mb-2 pb-1 border-b border-foreground">WORK EXPERIENCE</h2>
+        {resumeData.originalExperience?.slice(0, 2).map((exp, i) => (
+          <div key={i} className="mb-3">
+            <p className="font-semibold text-foreground">{exp.title} @ {exp.company}</p>
+            {exp.date && <p className="text-[10px] text-muted-foreground uppercase">{exp.date}</p>}
+            <ul className="mt-1 space-y-0.5">
+              {exp.bullets.slice(0, 3).map((bullet, j) => (
+                <li key={j} className="text-muted-foreground">• {bullet}</li>
+              ))}
+            </ul>
           </div>
         ))}
-      </div>
 
-      {newSkills.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-border">
-          <p className="text-accent text-[10px]">Additional verified skills: {newSkills.join(', ')}</p>
-        </div>
-      )}
-    </div>
-  );
-};
+        <h2 className="text-sm font-bold text-foreground mb-2 mt-4 pb-1 border-b border-foreground">SKILLS</h2>
+        <ul className="space-y-0.5">
+          {allSkills.map((skill, i) => (
+            <li key={i} className={cn(
+              "text-[11px]",
+              newSkills.includes(skill) ? "text-accent font-medium" : "text-muted-foreground"
+            )}>
+              • {skill}{newSkills.includes(skill) && ' ✓'}
+            </li>
+          ))}
+        </ul>
 
-const ExecutiveTemplatePreview: React.FC<FullPreviewProps> = ({
-  resumeData,
-  confirmedSkills,
-  originalSkills,
-  jobTitle,
-  company,
-}) => {
-  const newSkills = confirmedSkills.filter(
-    skill => !originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
-  );
-  const allSkills = [...originalSkills, ...newSkills];
-
-  return (
-    <div className="text-xs">
-      <div className="bg-primary/5 -m-6 mb-4 p-6 border-b-2 border-primary">
-        {jobTitle && company && (
-          <p className="text-[10px] text-primary/70 italic mb-2">
-            Prepared for: {jobTitle} at {company}
-          </p>
+        {resumeData.tools && resumeData.tools.length > 0 && (
+          <>
+            <h2 className="text-sm font-bold text-foreground mb-2 mt-4 pb-1 border-b border-foreground">TOOLS</h2>
+            <ul className="space-y-0.5">
+              {resumeData.tools.map((tool, i) => (
+                <li key={i} className="text-muted-foreground text-[11px]">• {tool}</li>
+              ))}
+            </ul>
+          </>
         )}
-        <h1 className="text-xl font-bold text-foreground">{resumeData.name}</h1>
-        <p className="text-primary font-semibold text-sm">{resumeData.title}</p>
-        <p className="text-muted-foreground text-[10px] mt-1">email@example.com | (555) 123-4567</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
-        <div>
-          <h2 className="text-sm font-bold text-primary mb-2">Core Competencies</h2>
-          <ul className="space-y-1">
-            {allSkills.slice(0, 6).map((skill, i) => (
-              <li key={i} className="flex items-center gap-2 text-muted-foreground">
-                <span className={cn(
-                  "w-1.5 h-1.5 rounded-full",
-                  newSkills.includes(skill) ? "bg-accent" : "bg-primary"
-                )} />
-                {skill}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <h2 className="text-sm font-bold text-primary mb-2">Key Achievements</h2>
-          <ul className="space-y-1">
-            {resumeData.experience.slice(0, 4).map((exp, i) => (
-              <li key={i} className="flex items-start gap-2 text-muted-foreground">
-                <span className={cn(
-                  "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                  exp.isModified ? "bg-accent" : "bg-primary"
-                )} />
-                {exp.text.slice(0, 60)}...
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
   );
