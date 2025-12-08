@@ -276,15 +276,25 @@ const LandingPage: React.FC = () => {
               </span>
             </div>
             
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-foreground">
-              Tailor your resume with{" "}
-              <span className="text-gradient">verified accuracy</span>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-scribble font-bold mb-8 leading-tight text-foreground">
+              Finally, an AI That Doesn't Lie on Your Resume
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              Unlike other AI tools that hallucinate skills, we verify every change with you 
-              before adding it. Your resume stays authentic, accurate, and powerful.
-            </p>
+            <div className="font-poppins text-base md:text-lg text-muted-foreground max-w-2xl mx-auto space-y-4">
+              <p>
+                Most AI tools hallucinate harder than your ex's excuses — adding random skills you never learned.
+              </p>
+              <p className="font-medium text-foreground">
+                We don't do that.
+              </p>
+              <p>
+                Every update goes through you first. Because accuracy beats chaos every time.
+              </p>
+              <p>
+                Your resume stays sharp, credible, and recruiter-ready.<br />
+                <span className="font-medium text-foreground">No surprises. No cringe.</span>
+              </p>
+            </div>
           </div>
 
           {/* Input Zones */}
