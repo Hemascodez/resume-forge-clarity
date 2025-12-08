@@ -78,111 +78,92 @@ serve(async (req) => {
     // Determine if this is the first message (no conversation history and no user answer)
     const isFirstMessage = conversationHistory.length === 0 && !userAnswer;
 
-    // Unified ATS calculation - SAME algorithm as calculate-ats function
-    const normalizeText = (text: string): string => {
-      return text.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
-    };
-
-    const calculateSimilarity = (str1: string, str2: string): number => {
-      const words1 = new Set(normalizeText(str1).split(/\s+/).filter(w => w.length > 2));
-      const words2 = new Set(normalizeText(str2).split(/\s+/).filter(w => w.length > 2));
-      if (words1.size === 0 || words2.size === 0) return 0;
-      let matches = 0;
-      words1.forEach(word => { if (words2.has(word)) matches++; });
-      return matches / Math.max(words1.size, words2.size);
-    };
-
-    const extractKeywords = (text: string): Set<string> => {
-      const normalized = normalizeText(text);
-      const words = normalized.split(/\s+/).filter(w => w.length > 2);
-      const stopWords = new Set([
-        'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had',
-        'her', 'was', 'one', 'our', 'out', 'has', 'have', 'been', 'will', 'your',
-        'from', 'they', 'this', 'that', 'with', 'would', 'there', 'their', 'what',
-        'about', 'which', 'when', 'make', 'like', 'time', 'just', 'know', 'take',
-        'people', 'into', 'year', 'good', 'some', 'could', 'them', 'see', 'other',
-        'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think',
-        'also', 'back', 'after', 'use', 'two', 'how', 'work', 'first', 'well',
-        'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day',
-        'most', 'experience', 'years', 'ability', 'strong', 'including', 'such',
-        'must', 'etc', 'highly', 'preferred', 'required', 'minimum',
-      ]);
-      return new Set(words.filter(w => !stopWords.has(w)));
-    };
-
-    // Calculate ATS score using SAME weighted algorithm as calculate-ats
-    const calculateCurrentATS = (
-      jdSkills: string[], 
-      jdRequirements: string[], 
-      jdResponsibilities: string[],
-      jdTitle: string,
-      resumeSkills: string[], 
-      resumeExperience: { title: string; company: string; bullets: string[] }[],
+    // AI-powered ATS calculation using Lovable AI (Gemini)
+    const calculateCurrentATSWithAI = async (
+      jd: typeof jobDescription, 
+      res: typeof resume,
       confirmedSoFar: string[] = []
-    ): number => {
-      const allResumeSkills = [...new Set([...resumeSkills, ...confirmedSoFar])];
+    ): Promise<number> => {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       
-      // 1. Skill Match Score (40% weight)
-      const normalizedJDSkills = jdSkills.map(s => normalizeText(s));
-      const normalizedResumeSkills = allResumeSkills.map(s => normalizeText(s));
-      
-      let matchedCount = 0;
-      normalizedJDSkills.forEach((jdSkill) => {
-        const found = normalizedResumeSkills.some(resumeSkill => 
-          resumeSkill.includes(jdSkill) || jdSkill.includes(resumeSkill) ||
-          calculateSimilarity(jdSkill, resumeSkill) > 0.6
-        );
-        if (found) matchedCount++;
-      });
-      
-      const skillMatchRatio = jdSkills.length > 0 ? matchedCount / jdSkills.length : 0.5;
-      const skillMatchScore = 40 + (skillMatchRatio * 60); // Range: 40-100
-      
-      // 2. Keyword Match Score (30% weight)
-      const jdText = [...jdRequirements, ...jdResponsibilities].join(' ');
-      const jdKeywords = extractKeywords(jdText);
-      
-      const resumeText = resumeExperience.map(exp => 
-        `${exp.title} ${exp.company} ${exp.bullets.join(' ')}`
-      ).join(' ') + ' ' + allResumeSkills.join(' ');
-      const resumeKeywords = extractKeywords(resumeText);
-      
-      let keywordMatches = 0;
-      jdKeywords.forEach(keyword => {
-        if (resumeKeywords.has(keyword)) keywordMatches++;
-      });
-      
-      const keywordRatio = jdKeywords.size > 0 ? keywordMatches / jdKeywords.size : 0.5;
-      const keywordMatchScore = 30 + (keywordRatio * 70); // Range: 30-100
-      
-      // 3. Experience Relevance Score (20% weight)
-      let experienceScore = 50;
-      if (resumeExperience.length > 0) {
-        const expScores = resumeExperience.map(exp => {
-          const expText = `${exp.title} ${exp.bullets.join(' ')}`;
-          return calculateSimilarity(expText, jdText) * 100;
-        });
-        experienceScore = Math.max(50, ...expScores.map(s => 50 + s * 0.5));
+      if (!LOVABLE_API_KEY) {
+        console.error("LOVABLE_API_KEY not configured, using fallback score");
+        return 55; // Fallback score
       }
+
+      const allSkills = [...new Set([...res.skills, ...confirmedSoFar])];
       
-      // 4. Title Match Score (10% weight)
-      const resumeTitles = resumeExperience.map(exp => normalizeText(exp.title));
-      const normalizedJDTitle = normalizeText(jdTitle);
-      const titleSimilarity = resumeTitles.reduce((best, title) => 
-        Math.max(best, calculateSimilarity(title, normalizedJDTitle)), 0
-      );
-      const titleMatchScore = 40 + (titleSimilarity * 60); // Range: 40-100
-      
-      // Calculate weighted total - SAME formula as calculate-ats
-      const rawTotal = Math.round(
-        (skillMatchScore * 0.4) +
-        (keywordMatchScore * 0.3) +
-        (experienceScore * 0.2) +
-        (titleMatchScore * 0.1)
-      );
-      
-      // Minimum 45 for original scores
-      return Math.min(100, Math.max(45, rawTotal));
+      const jdText = `
+Job Title: ${jd.title}
+Company: ${jd.company}
+Required Skills: ${jd.skills.join(', ')}
+Requirements: ${jd.requirements.join('\n')}
+Responsibilities: ${jd.responsibilities.join('\n')}
+      `.trim();
+
+      const resumeText = `
+Skills: ${allSkills.join(', ')}
+Experience:
+${res.experience.map(exp => `
+${exp.title} at ${exp.company}
+${exp.bullets.map(b => `• ${b}`).join('\n')}
+`).join('\n')}
+${res.rawText ? `Full Resume: ${res.rawText.substring(0, 5000)}` : ''}
+      `.trim();
+
+      const prompt = `You are an ATS (Applicant Tracking System) analyzer. Analyze how well this resume matches the job description.
+
+JOB DESCRIPTION:
+${jdText}
+
+RESUME:
+${resumeText}
+
+Return ONLY a single integer between 0-100 representing the ATS compatibility score.
+
+Scoring guidelines:
+- 90-100: Near-perfect match (rare)
+- 70-89: Strong match with most skills present
+- 50-69: Moderate match with some gaps
+- 30-49: Weak match with significant gaps
+- 0-29: Poor match
+
+Consider: skill overlap, keyword matches, experience relevance, and job title alignment.
+
+Return ONLY the number, nothing else.`;
+
+      try {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
+
+        if (!response.ok) {
+          console.error("AI gateway error:", response.status);
+          return 55;
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content?.trim();
+        const score = parseInt(content, 10);
+        
+        if (isNaN(score) || score < 0 || score > 100) {
+          console.error("Invalid AI score response:", content);
+          return 55;
+        }
+        
+        return score;
+      } catch (error) {
+        console.error("Error calculating ATS with AI:", error);
+        return 55;
+      }
     };
 
     // Extract confirmed skills from conversation history
@@ -211,15 +192,15 @@ serve(async (req) => {
     };
 
     const confirmedSoFar = extractConfirmedFromHistory();
-    const currentATSScore = calculateCurrentATS(
-      jobDescription.skills, 
-      jobDescription.requirements, 
-      jobDescription.responsibilities,
-      jobDescription.title,
-      resume.skills, 
-      resume.experience,
+    
+    // Calculate ATS score using AI
+    console.log('Calculating ATS score with AI...');
+    const currentATSScore = await calculateCurrentATSWithAI(
+      jobDescription,
+      resume,
       confirmedSoFar
     );
+    console.log('AI ATS Score:', currentATSScore);
 
     const systemPrompt = `You are ResumeAI — a fast, credibility-checking, funny-but-serious resume generator.
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.

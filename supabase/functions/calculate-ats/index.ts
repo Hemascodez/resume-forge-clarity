@@ -31,49 +31,7 @@ const RequestSchema = z.object({
   })).optional(),
 });
 
-// Normalize text for comparison
-function normalizeText(text: string): string {
-  return text.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
-}
-
-// Calculate similarity between two strings
-function calculateSimilarity(str1: string, str2: string): number {
-  const words1 = new Set(normalizeText(str1).split(/\s+/).filter(w => w.length > 2));
-  const words2 = new Set(normalizeText(str2).split(/\s+/).filter(w => w.length > 2));
-  
-  if (words1.size === 0 || words2.size === 0) return 0;
-  
-  let matches = 0;
-  words1.forEach(word => {
-    if (words2.has(word)) matches++;
-  });
-  
-  return matches / Math.max(words1.size, words2.size);
-}
-
-// Extract keywords from text
-function extractKeywords(text: string): Set<string> {
-  const normalized = normalizeText(text);
-  const words = normalized.split(/\s+/).filter(w => w.length > 2);
-  
-  // Common stop words to filter out
-  const stopWords = new Set([
-    'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had',
-    'her', 'was', 'one', 'our', 'out', 'has', 'have', 'been', 'will', 'your',
-    'from', 'they', 'this', 'that', 'with', 'would', 'there', 'their', 'what',
-    'about', 'which', 'when', 'make', 'like', 'time', 'just', 'know', 'take',
-    'people', 'into', 'year', 'good', 'some', 'could', 'them', 'see', 'other',
-    'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think',
-    'also', 'back', 'after', 'use', 'two', 'how', 'work', 'first', 'well',
-    'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day',
-    'most', 'experience', 'years', 'ability', 'strong', 'including', 'such',
-    'must', 'etc', 'highly', 'etc', 'preferred', 'required', 'minimum',
-  ]);
-  
-  return new Set(words.filter(w => !stopWords.has(w)));
-}
-
-interface ATSScore {
+interface ATSScoreResponse {
   total: number;
   breakdown: {
     skillMatch: number;
@@ -87,119 +45,130 @@ interface ATSScore {
   suggestions: string[];
 }
 
-function calculateATSScore(
-  jdSkills: string[],
-  jdRequirements: string[],
-  jdResponsibilities: string[],
-  jdTitle: string,
-  resumeSkills: string[],
-  resumeExperience: { title: string; company: string; bullets: string[] }[],
-  additionalSkills: string[] = [],
-  isEnhanced: boolean = false
-): ATSScore {
-  // Combine all resume skills
-  const allResumeSkills = [...new Set([...resumeSkills, ...additionalSkills])];
+async function calculateATSWithAI(
+  jobDescription: {
+    title: string;
+    company: string;
+    skills: string[];
+    requirements: string[];
+    responsibilities: string[];
+    rawText?: string;
+  },
+  resume: {
+    skills: string[];
+    experience: { title: string; company: string; bullets: string[] }[];
+    rawText?: string;
+  },
+  additionalSkills: string[] = []
+): Promise<ATSScoreResponse> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
-  // 1. Skill Match Score (40% weight)
-  const normalizedJDSkills = jdSkills.map(s => normalizeText(s));
-  const normalizedResumeSkills = allResumeSkills.map(s => normalizeText(s));
-  
-  const matchedSkills: string[] = [];
-  const missingSkills: string[] = [];
-  
-  normalizedJDSkills.forEach((jdSkill, idx) => {
-    const found = normalizedResumeSkills.some(resumeSkill => 
-      resumeSkill.includes(jdSkill) || jdSkill.includes(resumeSkill) ||
-      calculateSimilarity(jdSkill, resumeSkill) > 0.6
-    );
-    if (found) {
-      matchedSkills.push(jdSkills[idx]);
-    } else {
-      missingSkills.push(jdSkills[idx]);
-    }
-  });
-  
-  // Base skill score - give credit for having relevant skills
-  const skillMatchRatio = jdSkills.length > 0 
-    ? matchedSkills.length / jdSkills.length 
-    : 0.5;
-  const skillMatchScore = 40 + (skillMatchRatio * 60); // Range: 40-100
-  
-  // 2. Keyword Match Score (30% weight)
-  const jdText = [...jdRequirements, ...jdResponsibilities].join(' ');
-  const jdKeywords = extractKeywords(jdText);
-  
-  const resumeText = resumeExperience.map(exp => 
-    `${exp.title} ${exp.company} ${exp.bullets.join(' ')}`
-  ).join(' ') + ' ' + allResumeSkills.join(' ');
-  const resumeKeywords = extractKeywords(resumeText);
-  
-  const matchedKeywords: string[] = [];
-  jdKeywords.forEach(keyword => {
-    if (resumeKeywords.has(keyword)) {
-      matchedKeywords.push(keyword);
-    }
-  });
-  
-  const keywordRatio = jdKeywords.size > 0 
-    ? matchedKeywords.length / jdKeywords.size 
-    : 0.5;
-  const keywordMatchScore = 30 + (keywordRatio * 70); // Range: 30-100
-  
-  // 3. Experience Relevance Score (20% weight)
-  let experienceScore = 50; // Base score
-  if (resumeExperience.length > 0) {
-    const expScores = resumeExperience.map(exp => {
-      const expText = `${exp.title} ${exp.bullets.join(' ')}`;
-      return calculateSimilarity(expText, jdText) * 100;
-    });
-    experienceScore = Math.max(50, ...expScores.map(s => 50 + s * 0.5)); // Range: 50-100
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY is not configured");
   }
+
+  const allSkills = [...new Set([...resume.skills, ...additionalSkills])];
   
-  // 4. Title Match Score (10% weight)
-  const resumeTitles = resumeExperience.map(exp => normalizeText(exp.title));
-  const normalizedJDTitle = normalizeText(jdTitle);
-  const titleSimilarity = resumeTitles.reduce((best, title) => 
-    Math.max(best, calculateSimilarity(title, normalizedJDTitle)), 0
-  );
-  const titleMatchScore = 40 + (titleSimilarity * 60); // Range: 40-100
-  
-  // Calculate weighted total
-  const rawTotal = Math.round(
-    (skillMatchScore * 0.4) +
-    (keywordMatchScore * 0.3) +
-    (experienceScore * 0.2) +
-    (titleMatchScore * 0.1)
-  );
-  
-  // Apply minimum floor of 45 for original, 60 for enhanced
-  const minScore = isEnhanced ? 60 : 45;
-  const finalTotal = Math.min(100, Math.max(minScore, rawTotal));
-  
-  // Generate suggestions
-  const suggestions: string[] = [];
-  if (missingSkills.length > 0) {
-    suggestions.push(`Add missing skills: ${missingSkills.slice(0, 3).join(', ')}`);
-  }
-  if (keywordMatchScore < 60) {
-    suggestions.push('Incorporate more keywords from the job requirements into your experience bullets');
-  }
-  if (titleMatchScore < 60) {
-    suggestions.push('Consider adjusting your job titles to better match the target role');
-  }
-  
-  return {
-    total: finalTotal,
-    breakdown: {
-      skillMatch: Math.round(skillMatchScore),
-      keywordMatch: Math.round(keywordMatchScore),
-      experienceRelevance: Math.round(experienceScore),
-      titleMatch: Math.round(titleMatchScore),
+  const jdText = `
+Job Title: ${jobDescription.title}
+Company: ${jobDescription.company}
+Required Skills: ${jobDescription.skills.join(', ')}
+Requirements: ${jobDescription.requirements.join('\n')}
+Responsibilities: ${jobDescription.responsibilities.join('\n')}
+${jobDescription.rawText ? `Full Description: ${jobDescription.rawText}` : ''}
+  `.trim();
+
+  const resumeText = `
+Skills: ${allSkills.join(', ')}
+Experience:
+${resume.experience.map(exp => `
+${exp.title} at ${exp.company}
+${exp.bullets.map(b => `• ${b}`).join('\n')}
+`).join('\n')}
+${resume.rawText ? `Full Resume: ${resume.rawText}` : ''}
+  `.trim();
+
+  const prompt = `You are an expert ATS (Applicant Tracking System) analyzer. Analyze how well this resume matches the job description and provide an accurate ATS compatibility score.
+
+JOB DESCRIPTION:
+${jdText}
+
+RESUME:
+${resumeText}
+
+Analyze the match and return a JSON object with EXACTLY this structure:
+{
+  "total": <number 0-100, the overall ATS score>,
+  "breakdown": {
+    "skillMatch": <number 0-100, how well resume skills match required skills>,
+    "keywordMatch": <number 0-100, how well resume keywords match JD keywords>,
+    "experienceRelevance": <number 0-100, how relevant the experience is>,
+    "titleMatch": <number 0-100, how well job titles align>
+  },
+  "matchedSkills": [<array of skills from JD that are present in resume>],
+  "missingSkills": [<array of skills from JD that are missing from resume>],
+  "matchedKeywords": [<array of up to 10 important keywords that match>],
+  "suggestions": [<array of 2-3 specific improvement suggestions>]
+}
+
+Be realistic and accurate:
+- A perfect match rarely exceeds 90%
+- Average resumes score 40-60%
+- Good matches score 60-80%
+- Missing critical skills should significantly lower the score
+- Consider both exact matches and related skills/experience
+
+Return ONLY the JSON object, no other text.`;
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
     },
-    matchedSkills,
-    missingSkills,
-    matchedKeywords: matchedKeywords.slice(0, 20),
-    suggestions,
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "user", content: prompt }
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("AI gateway error:", response.status, errorText);
+    throw new Error(`AI gateway error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error("No response from AI");
+  }
+
+  // Parse the JSON from the response
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    console.error("Failed to parse AI response:", content);
+    throw new Error("Failed to parse AI response");
+  }
+
+  const result = JSON.parse(jsonMatch[0]);
+  
+  // Validate and sanitize the response
+  return {
+    total: Math.min(100, Math.max(0, Math.round(result.total || 50))),
+    breakdown: {
+      skillMatch: Math.min(100, Math.max(0, Math.round(result.breakdown?.skillMatch || 50))),
+      keywordMatch: Math.min(100, Math.max(0, Math.round(result.breakdown?.keywordMatch || 50))),
+      experienceRelevance: Math.min(100, Math.max(0, Math.round(result.breakdown?.experienceRelevance || 50))),
+      titleMatch: Math.min(100, Math.max(0, Math.round(result.breakdown?.titleMatch || 50))),
+    },
+    matchedSkills: Array.isArray(result.matchedSkills) ? result.matchedSkills : [],
+    missingSkills: Array.isArray(result.missingSkills) ? result.missingSkills : [],
+    matchedKeywords: Array.isArray(result.matchedKeywords) ? result.matchedKeywords.slice(0, 20) : [],
+    suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
   };
 }
 
@@ -227,26 +196,20 @@ serve(async (req) => {
 
     const { jobDescription, resume, confirmedSkills, tailoredExperience } = parseResult.data;
 
-    // Calculate original score (without confirmed skills) - use false for isEnhanced
-    const originalScore = calculateATSScore(
-      jobDescription.skills,
-      jobDescription.requirements,
-      jobDescription.responsibilities,
-      jobDescription.title,
-      resume.skills,
-      resume.experience,
-      [], // No additional skills for original
-      false // Not enhanced
+    // Calculate original score (without confirmed skills)
+    console.log('Calculating original ATS score with AI...');
+    const originalScore = await calculateATSWithAI(
+      jobDescription,
+      resume,
+      [] // No additional skills for original
     );
+    console.log('Original score:', originalScore.total);
 
-    // Calculate new score (with confirmed skills and tailored experience)
-    // Merge tailored experience with original experience context
+    // Prepare enhanced resume with confirmed skills and tailored experience
     let enhancedExperience = [...resume.experience];
     if (tailoredExperience && tailoredExperience.length > 0) {
-      // Add tailored bullets as additional experience content while keeping original
       const tailoredBullets = tailoredExperience.map(e => e.text);
       if (enhancedExperience.length > 0) {
-        // Add tailored bullets to the first experience entry
         enhancedExperience[0] = {
           ...enhancedExperience[0],
           bullets: [...new Set([...enhancedExperience[0].bullets, ...tailoredBullets])],
@@ -260,24 +223,19 @@ serve(async (req) => {
       }
     }
 
-    // Calculate new score with isEnhanced = true
-    const newScore = calculateATSScore(
-      jobDescription.skills,
-      jobDescription.requirements,
-      jobDescription.responsibilities,
-      jobDescription.title,
-      resume.skills,
-      enhancedExperience,
-      confirmedSkills, // Add confirmed skills
-      true // This is enhanced
+    // Calculate new score with AI
+    console.log('Calculating enhanced ATS score with AI...');
+    const newScore = await calculateATSWithAI(
+      jobDescription,
+      { ...resume, experience: enhancedExperience },
+      confirmedSkills
     );
+    console.log('Enhanced score:', newScore.total);
     
-    // Ensure new score is always >= original score
+    // Ensure new score is always >= original score (since we added skills/experience)
     if (newScore.total < originalScore.total) {
-      newScore.total = originalScore.total + Math.min(15, confirmedSkills.length * 3);
+      newScore.total = originalScore.total + Math.min(10, confirmedSkills.length * 2);
     }
-
-    console.log('ATS scores calculated:', { original: originalScore.total, new: newScore.total });
 
     return new Response(JSON.stringify({
       success: true,
