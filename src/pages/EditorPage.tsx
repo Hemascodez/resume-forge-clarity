@@ -5,15 +5,17 @@ import { ATSScoreComparison, ChangesSummary } from "@/components/ATSScoreCompari
 import { EditableExperienceItem } from "@/components/EditableExperienceItem";
 import { JoystickButton, DialKnob } from "@/components/JoystickButton";
 import { ControllerCard, TriggerProgress, JoystickController, MiniJoystick } from "@/components/JoystickElements";
-import { ArrowLeft, Download, FileText, Briefcase, Zap, LogOut, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Briefcase, Zap, LogOut, Loader2, LayoutDashboard } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useATSScore } from "@/hooks/useATSScore";
+import { useResumeSession } from "@/hooks/useResumeSession";
 import { toast } from "sonner";
 
 interface LocationState {
+  sessionId?: string;
   jobDescription?: {
     title: string;
     company: string;
@@ -73,7 +75,9 @@ const EditorPage: React.FC = () => {
   
   const { user, signOut } = useAuth();
   const { calculateScore, isCalculating, oldScore, newScore, missingSkills, matchedSkills } = useATSScore();
+  const { updateSession } = useResumeSession();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const sessionId = locationState?.sessionId;
   
   // Use data from interrogation flow or fallback
   const jd = locationState?.jobDescription ? {
@@ -114,7 +118,18 @@ const EditorPage: React.FC = () => {
         experience
       );
     }
-  }, []); // Only run once on mount
+  }, []);
+
+  // Save ATS scores to session when calculated
+  useEffect(() => {
+    if (sessionId && user && oldScore && newScore) {
+      updateSession(sessionId, {
+        oldAtsScore: oldScore,
+        newAtsScore: newScore,
+        status: "completed",
+      });
+    }
+  }, [oldScore, newScore, sessionId, user]);
 
   const handleUpdateExperience = (index: number, newText: string) => {
     const updated = experience.map((item, i) => 
@@ -138,6 +153,15 @@ const EditorPage: React.FC = () => {
       setShowAuthModal(true);
       return;
     }
+    
+    // Save final state to session before download
+    if (sessionId) {
+      updateSession(sessionId, {
+        tailoredResume: { experience, skills: resumeData.skills },
+        status: "completed",
+      });
+    }
+    
     toast.success("Resume downloaded successfully!");
   };
 
@@ -177,6 +201,12 @@ const EditorPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          {user && (
+            <JoystickButton variant="neutral" size="sm" onClick={() => navigate("/dashboard")}>
+              <LayoutDashboard className="w-4 h-4" />
+            </JoystickButton>
+          )}
+          
           {isCalculating ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Loader2 className="w-4 h-4 animate-spin" />

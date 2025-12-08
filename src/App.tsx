@@ -7,6 +7,7 @@ import LandingPage from "./pages/LandingPage";
 import InterrogationPage from "./pages/InterrogationPage";
 import EditorPage from "./pages/EditorPage";
 import AuthPage from "./pages/AuthPage";
+import DashboardPage from "./pages/DashboardPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,6 +21,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/interrogation" element={<InterrogationPage />} />
           <Route path="/editor" element={<EditorPage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
