@@ -1,6 +1,8 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, TableCell, TableRow, Table, WidthType } from 'docx';
 import { saveAs } from 'file-saver';
+
+export type TemplateType = 'modern' | 'classic' | 'minimal' | 'executive';
 
 export interface ResumeModifications {
   originalSkills: string[];
@@ -8,6 +10,14 @@ export interface ResumeModifications {
   experienceChanges: { original: string; modified: string }[];
   jobTitle?: string;
   company?: string;
+}
+
+export interface ResumeData {
+  name: string;
+  title: string;
+  skills: string[];
+  experience: { text: string; isModified: boolean }[];
+  originalExperience?: { title: string; company: string; bullets: string[] }[];
 }
 
 // Store the original file for later modification
@@ -22,128 +32,27 @@ export const storeOriginalFile = (file: File, text: string) => {
 export const getStoredFile = () => storedOriginalFile;
 export const getStoredText = () => storedOriginalText;
 
-// Apply text replacements to content
-const applyTextReplacements = (
-  text: string, 
-  modifications: ResumeModifications
-): string => {
-  let modifiedText = text;
-  
-  // Apply experience changes
-  modifications.experienceChanges.forEach(change => {
-    if (change.original && change.modified && change.original !== change.modified) {
-      modifiedText = modifiedText.replace(change.original, change.modified);
-    }
-  });
-  
-  // Add new skills if they're not already present
-  const newSkills = modifications.confirmedSkills.filter(
-    skill => !modifications.originalSkills.some(
-      os => os.toLowerCase() === skill.toLowerCase()
-    )
-  );
-  
-  if (newSkills.length > 0) {
-    // Try to find skills section and append
-    const skillsMatch = modifiedText.match(/(skills?|technologies|technical skills)[\s:]*([^\n]*)/i);
-    if (skillsMatch) {
-      const existingSkills = skillsMatch[2];
-      const newSkillsText = newSkills.join(', ');
-      modifiedText = modifiedText.replace(
-        skillsMatch[0],
-        `${skillsMatch[1]}: ${existingSkills}, ${newSkillsText}`
-      );
-    }
-  }
-  
-  return modifiedText;
-};
-
-// Generate modified DOCX
-export const generateModifiedDocx = async (
+// Generate Modern Template DOCX
+const generateModernDocx = async (
+  resumeData: ResumeData,
   modifications: ResumeModifications,
-  resumeName: string = 'Candidate'
-): Promise<void> => {
-  const modifiedText = applyTextReplacements(storedOriginalText, modifications);
-  const lines = modifiedText.split('\n').filter(l => l.trim());
-  
+): Promise<Blob> => {
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
   const children: Paragraph[] = [];
-  
-  // Parse and recreate document structure
-  let inSection = '';
-  
-  lines.forEach((line, index) => {
-    const trimmedLine = line.trim();
-    
-    // Detect section headers
-    if (trimmedLine.match(/^(experience|work history|education|skills|summary|objective|projects)/i)) {
-      inSection = trimmedLine.toLowerCase();
-      children.push(
-        new Paragraph({
-          text: trimmedLine.toUpperCase(),
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 400, after: 200 },
-        })
-      );
-    } else if (index === 0) {
-      // First line is usually the name
-      children.push(
-        new Paragraph({
-          text: trimmedLine,
-          heading: HeadingLevel.HEADING_1,
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
-        })
-      );
-    } else if (index === 1 && !trimmedLine.match(/^(experience|skills)/i)) {
-      // Second line is often title or contact
-      children.push(
-        new Paragraph({
-          text: trimmedLine,
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 },
-        })
-      );
-    } else if (trimmedLine.startsWith('-') || trimmedLine.startsWith('•') || trimmedLine.startsWith('*')) {
-      // Bullet points - check if modified
-      const bulletText = trimmedLine.replace(/^[-•*]\s*/, '');
-      const isModified = modifications.experienceChanges.some(
-        change => change.modified === bulletText
-      );
-      
-      children.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: `• ${bulletText}`,
-              color: isModified ? '228B22' : '000000', // Green if modified
-              bold: isModified,
-            }),
-          ],
-          spacing: { after: 100 },
-          indent: { left: 360 },
-        })
-      );
-    } else {
-      // Regular paragraph
-      children.push(
-        new Paragraph({
-          text: trimmedLine,
-          spacing: { after: 100 },
-        })
-      );
-    }
-  });
-  
-  // Add tailored for note at the top
+
+  // Tailored for note
   if (modifications.jobTitle && modifications.company) {
-    children.unshift(
+    children.push(
       new Paragraph({
         children: [
           new TextRun({
             text: `Tailored for: ${modifications.jobTitle} at ${modifications.company}`,
             italics: true,
-            size: 20,
+            size: 18,
             color: '666666',
           }),
         ],
@@ -152,196 +61,640 @@ export const generateModifiedDocx = async (
       })
     );
   }
-  
-  const doc = new Document({
-    sections: [{
-      properties: {},
-      children,
-    }],
-  });
-  
-  const blob = await Packer.toBlob(doc);
-  const filename = `${resumeName.replace(/[^a-zA-Z0-9]/g, '_')}_${modifications.company?.replace(/[^a-zA-Z0-9]/g, '_') || 'Tailored'}_Resume.docx`;
-  saveAs(blob, filename);
-};
 
-// Generate modified PDF (overlay approach for simple cases)
-export const generateModifiedPdf = async (
-  modifications: ResumeModifications,
-  resumeName: string = 'Candidate'
-): Promise<void> => {
-  // If we have the original PDF, try to add annotations
-  if (storedOriginalFile && storedOriginalFile.type === 'application/pdf') {
-    try {
-      const arrayBuffer = await storedOriginalFile.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(arrayBuffer);
-      const pages = pdfDoc.getPages();
-      const firstPage = pages[0];
-      const { height } = firstPage.getSize();
-      
-      // Add a note about tailoring at the top
-      if (modifications.jobTitle && modifications.company) {
-        const font = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-        firstPage.drawText(
-          `Tailored for: ${modifications.jobTitle} at ${modifications.company}`,
-          {
-            x: 50,
-            y: height - 30,
-            size: 9,
-            font,
-            color: rgb(0.4, 0.4, 0.4),
-          }
+  // Name with left border effect (using indent)
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.name,
+          bold: true,
+          size: 48,
+          color: '1a1a1a',
+        }),
+      ],
+      spacing: { after: 50 },
+      border: {
+        left: { style: BorderStyle.THICK, size: 24, color: '3B82F6' },
+      },
+      indent: { left: 200 },
+    })
+  );
+
+  // Title
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.title,
+          bold: true,
+          size: 24,
+          color: '3B82F6',
+        }),
+      ],
+      spacing: { after: 100 },
+      indent: { left: 200 },
+    })
+  );
+
+  // Contact
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'email@example.com • (555) 123-4567 • Location',
+          size: 18,
+          color: '666666',
+        }),
+      ],
+      spacing: { after: 400 },
+      indent: { left: 200 },
+    })
+  );
+
+  // Skills Section
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'SKILLS',
+          bold: true,
+          size: 24,
+          color: '1a1a1a',
+        }),
+      ],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '3B82F6' } },
+      spacing: { before: 200, after: 150 },
+    })
+  );
+
+  // Skills as comma-separated with new skills highlighted
+  const skillRuns: TextRun[] = [];
+  allSkills.forEach((skill, i) => {
+    const isNew = newSkills.includes(skill);
+    skillRuns.push(
+      new TextRun({
+        text: skill + (isNew ? ' ✓' : ''),
+        size: 20,
+        color: isNew ? '22C55E' : '3B82F6',
+        bold: isNew,
+      })
+    );
+    if (i < allSkills.length - 1) {
+      skillRuns.push(new TextRun({ text: ' • ', size: 20, color: '999999' }));
+    }
+  });
+  children.push(new Paragraph({ children: skillRuns, spacing: { after: 300 } }));
+
+  // Experience Section
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'PROFESSIONAL EXPERIENCE',
+          bold: true,
+          size: 24,
+          color: '1a1a1a',
+        }),
+      ],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '3B82F6' } },
+      spacing: { before: 200, after: 150 },
+    })
+  );
+
+  // Original experience entries
+  if (resumeData.originalExperience && resumeData.originalExperience.length > 0) {
+    for (const exp of resumeData.originalExperience) {
+      // Title and company
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: exp.title, bold: true, size: 22, color: '1a1a1a' }),
+            new TextRun({ text: ' — ', size: 22, color: '999999' }),
+            new TextRun({ text: exp.company, size: 22, color: '666666' }),
+          ],
+          spacing: { before: 150, after: 100 },
+        })
+      );
+
+      // Bullets
+      for (const bullet of exp.bullets) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '3B82F6' }),
+              new TextRun({ text: bullet, size: 20, color: '444444' }),
+            ],
+            indent: { left: 300 },
+            spacing: { after: 50 },
+          })
         );
       }
-      
-      // Add new skills at the bottom of first page if any
-      const newSkills = modifications.confirmedSkills.filter(
-        skill => !modifications.originalSkills.some(
-          os => os.toLowerCase() === skill.toLowerCase()
-        )
-      );
-      
-      if (newSkills.length > 0) {
-        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-        
-        firstPage.drawText('Additional Skills (Verified):', {
-          x: 50,
-          y: 80,
-          size: 10,
-          font: boldFont,
-          color: rgb(0.13, 0.55, 0.13), // Green
-        });
-        
-        firstPage.drawText(newSkills.join(' • '), {
-          x: 50,
-          y: 65,
-          size: 9,
-          font,
-          color: rgb(0.13, 0.55, 0.13),
-        });
-      }
-      
-      const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes as unknown as ArrayBuffer], { type: 'application/pdf' });
-      const filename = `${resumeName.replace(/[^a-zA-Z0-9]/g, '_')}_${modifications.company?.replace(/[^a-zA-Z0-9]/g, '_') || 'Tailored'}_Resume.pdf`;
-      saveAs(blob, filename);
-      return;
-    } catch (error) {
-      console.error('Error modifying PDF:', error);
-      // Fall through to generate new PDF
     }
   }
-  
-  // Fallback: Generate a new PDF with the modified content
-  const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-  
-  let page = pdfDoc.addPage([612, 792]); // Letter size
-  const { width, height } = page.getSize();
-  const margin = 50;
-  let yPos = height - margin;
-  
-  // Add tailoring note
-  if (modifications.jobTitle && modifications.company) {
-    page.drawText(`Tailored for: ${modifications.jobTitle} at ${modifications.company}`, {
-      x: margin,
-      y: yPos,
-      size: 9,
-      font: italicFont,
-      color: rgb(0.4, 0.4, 0.4),
-    });
-    yPos -= 25;
-  }
-  
-  // Parse and render content
-  const modifiedText = applyTextReplacements(storedOriginalText, modifications);
-  const lines = modifiedText.split('\n').filter(l => l.trim());
-  
-  lines.forEach((line, index) => {
-    if (yPos < margin + 50) {
-      page = pdfDoc.addPage([612, 792]);
-      yPos = height - margin;
-    }
-    
-    const trimmedLine = line.trim();
-    const isBullet = trimmedLine.startsWith('-') || trimmedLine.startsWith('•') || trimmedLine.startsWith('*');
-    const isModified = modifications.experienceChanges.some(
-      change => trimmedLine.includes(change.modified)
+
+  // AI-enhanced additions
+  const enhancedItems = resumeData.experience.filter(e => e.isModified);
+  if (enhancedItems.length > 0) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: '✨ Verified Skill Additions',
+            bold: true,
+            size: 20,
+            color: '22C55E',
+          }),
+        ],
+        spacing: { before: 200, after: 100 },
+      })
     );
-    
-    if (index === 0) {
-      // Name
-      page.drawText(trimmedLine, {
-        x: margin,
-        y: yPos,
-        size: 20,
-        font: boldFont,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-      yPos -= 30;
-    } else if (trimmedLine.match(/^(experience|work history|education|skills|summary|objective|projects)/i)) {
-      // Section header
-      yPos -= 10;
-      page.drawText(trimmedLine.toUpperCase(), {
-        x: margin,
-        y: yPos,
-        size: 12,
-        font: boldFont,
-        color: rgb(0.2, 0.2, 0.2),
-      });
-      yPos -= 20;
-    } else if (isBullet) {
-      const bulletText = trimmedLine.replace(/^[-•*]\s*/, '');
-      page.drawText(`• ${bulletText}`, {
-        x: margin + 15,
-        y: yPos,
-        size: 10,
-        font: font,
-        color: isModified ? rgb(0.13, 0.55, 0.13) : rgb(0.2, 0.2, 0.2),
-      });
-      yPos -= 15;
-    } else {
-      page.drawText(trimmedLine, {
-        x: margin,
-        y: yPos,
-        size: 10,
-        font: font,
-        color: rgb(0.2, 0.2, 0.2),
-      });
-      yPos -= 15;
+
+    for (const item of enhancedItems) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: '• ', size: 20, color: '22C55E' }),
+            new TextRun({ text: item.text, size: 20, color: '22C55E' }),
+          ],
+          indent: { left: 300 },
+          spacing: { after: 50 },
+        })
+      );
     }
-  });
-  
+  }
+
   // Footer
-  const firstPage = pdfDoc.getPages()[0];
-  firstPage.drawText('Generated with ResumeAI', {
-    x: margin,
-    y: 30,
-    size: 8,
-    font: italicFont,
-    color: rgb(0.6, 0.6, 0.6),
-  });
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Generated with ResumeAI • ${new Date().toLocaleDateString()}`,
+          italics: true,
+          size: 16,
+          color: '999999',
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 400 },
+    })
+  );
+
+  const doc = new Document({ sections: [{ properties: {}, children }] });
+  return await Packer.toBlob(doc);
+};
+
+// Generate Classic Template DOCX
+const generateClassicDocx = async (
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): Promise<Blob> => {
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
+  const children: Paragraph[] = [];
+
+  // Tailored for note
+  if (modifications.jobTitle && modifications.company) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Tailored for: ${modifications.jobTitle} at ${modifications.company}`,
+            italics: true,
+            size: 18,
+            color: '666666',
+          }),
+        ],
+        alignment: AlignmentType.RIGHT,
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Name centered
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.name.toUpperCase(),
+          bold: true,
+          size: 48,
+          color: '000000',
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 50 },
+    })
+  );
+
+  // Title
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.title,
+          size: 24,
+          color: '444444',
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+    })
+  );
+
+  // Contact
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'email@example.com | (555) 123-4567 | Location',
+          size: 18,
+          color: '666666',
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      border: { bottom: { style: BorderStyle.DOUBLE, size: 6, color: '000000' } },
+      spacing: { after: 300 },
+    })
+  );
+
+  // Skills Section
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'PROFESSIONAL SKILLS',
+          bold: true,
+          size: 22,
+          color: '000000',
+        }),
+      ],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' } },
+      spacing: { before: 200, after: 100 },
+    })
+  );
+
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: allSkills.join(' • '),
+          size: 20,
+          color: '444444',
+        }),
+      ],
+      spacing: { after: 300 },
+    })
+  );
+
+  // Experience Section
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'PROFESSIONAL EXPERIENCE',
+          bold: true,
+          size: 22,
+          color: '000000',
+        }),
+      ],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' } },
+      spacing: { before: 200, after: 100 },
+    })
+  );
+
+  if (resumeData.originalExperience && resumeData.originalExperience.length > 0) {
+    for (const exp of resumeData.originalExperience) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: exp.title, bold: true, size: 22, color: '000000' }),
+          ],
+        })
+      );
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: exp.company, italics: true, size: 20, color: '666666' }),
+          ],
+          spacing: { after: 100 },
+        })
+      );
+
+      for (const bullet of exp.bullets) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ' + bullet, size: 20, color: '444444' }),
+            ],
+            indent: { left: 300 },
+            spacing: { after: 50 },
+          })
+        );
+      }
+    }
+  }
+
+  const doc = new Document({ sections: [{ properties: {}, children }] });
+  return await Packer.toBlob(doc);
+};
+
+// Generate Minimal Template DOCX
+const generateMinimalDocx = async (
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): Promise<Blob> => {
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
+  const children: Paragraph[] = [];
+
+  // Tailored for note
+  if (modifications.jobTitle && modifications.company) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `For: ${modifications.jobTitle}, ${modifications.company}`,
+            italics: true,
+            size: 18,
+            color: '888888',
+          }),
+        ],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Name
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.name,
+          bold: true,
+          size: 44,
+          color: '000000',
+        }),
+      ],
+      spacing: { after: 50 },
+    })
+  );
+
+  // Title with skills inline
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `${resumeData.title} • ${allSkills.slice(0, 4).join(', ')}`,
+          size: 20,
+          color: '666666',
+        }),
+      ],
+      spacing: { after: 300 },
+    })
+  );
+
+  // Experience
+  if (resumeData.originalExperience && resumeData.originalExperience.length > 0) {
+    for (const exp of resumeData.originalExperience) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.title} — ${exp.company}`, bold: true, size: 22, color: '000000' }),
+          ],
+          spacing: { before: 150, after: 100 },
+        })
+      );
+
+      for (const bullet of exp.bullets.slice(0, 3)) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ' + bullet, size: 20, color: '444444' }),
+            ],
+            indent: { left: 300 },
+            spacing: { after: 50 },
+          })
+        );
+      }
+    }
+  }
+
+  // New skills note
+  if (newSkills.length > 0) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Additional verified skills: ${newSkills.join(', ')}`,
+            size: 18,
+            color: '22C55E',
+          }),
+        ],
+        spacing: { before: 200 },
+      })
+    );
+  }
+
+  const doc = new Document({ sections: [{ properties: {}, children }] });
+  return await Packer.toBlob(doc);
+};
+
+// Generate Executive Template DOCX
+const generateExecutiveDocx = async (
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): Promise<Blob> => {
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
+  const children: Paragraph[] = [];
+
+  // Header with background effect
+  if (modifications.jobTitle && modifications.company) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Prepared for: ${modifications.jobTitle} at ${modifications.company}`,
+            italics: true,
+            size: 18,
+            color: '3B82F6',
+          }),
+        ],
+        spacing: { after: 100 },
+      })
+    );
+  }
+
+  // Name
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.name,
+          bold: true,
+          size: 52,
+          color: '1a1a1a',
+        }),
+      ],
+      shading: { fill: 'EFF6FF' },
+      spacing: { after: 50 },
+    })
+  );
+
+  // Title
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.title,
+          bold: true,
+          size: 28,
+          color: '3B82F6',
+        }),
+      ],
+      shading: { fill: 'EFF6FF' },
+      spacing: { after: 100 },
+    })
+  );
+
+  // Contact
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'email@example.com | (555) 123-4567',
+          size: 18,
+          color: '666666',
+        }),
+      ],
+      shading: { fill: 'EFF6FF' },
+      border: { bottom: { style: BorderStyle.THICK, size: 12, color: '3B82F6' } },
+      spacing: { after: 300 },
+    })
+  );
+
+  // Core Competencies
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'CORE COMPETENCIES',
+          bold: true,
+          size: 24,
+          color: '3B82F6',
+        }),
+      ],
+      spacing: { before: 200, after: 150 },
+    })
+  );
+
+  for (const skill of allSkills.slice(0, 8)) {
+    const isNew = newSkills.includes(skill);
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: '✓ ' + skill,
+            size: 20,
+            color: isNew ? '22C55E' : '444444',
+            bold: isNew,
+          }),
+        ],
+        indent: { left: 200 },
+        spacing: { after: 50 },
+      })
+    );
+  }
+
+  // Key Achievements
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'KEY ACHIEVEMENTS',
+          bold: true,
+          size: 24,
+          color: '3B82F6',
+        }),
+      ],
+      spacing: { before: 200, after: 150 },
+    })
+  );
+
+  for (const exp of resumeData.experience.slice(0, 5)) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: '• ' + exp.text,
+            size: 20,
+            color: exp.isModified ? '22C55E' : '444444',
+          }),
+        ],
+        indent: { left: 200 },
+        spacing: { after: 50 },
+      })
+    );
+  }
+
+  const doc = new Document({ sections: [{ properties: {}, children }] });
+  return await Packer.toBlob(doc);
+};
+
+// Main export function - generates template-based resume
+export const downloadTemplateResume = async (
+  template: TemplateType,
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): Promise<void> => {
+  let blob: Blob;
   
-  const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes as unknown as ArrayBuffer], { type: 'application/pdf' });
-  const filename = `${resumeName.replace(/[^a-zA-Z0-9]/g, '_')}_${modifications.company?.replace(/[^a-zA-Z0-9]/g, '_') || 'Tailored'}_Resume.pdf`;
+  switch (template) {
+    case 'modern':
+      blob = await generateModernDocx(resumeData, modifications);
+      break;
+    case 'classic':
+      blob = await generateClassicDocx(resumeData, modifications);
+      break;
+    case 'minimal':
+      blob = await generateMinimalDocx(resumeData, modifications);
+      break;
+    case 'executive':
+      blob = await generateExecutiveDocx(resumeData, modifications);
+      break;
+    default:
+      blob = await generateModernDocx(resumeData, modifications);
+  }
+  
+  const filename = `${resumeData.name.replace(/[^a-zA-Z0-9]/g, '_')}_${modifications.company?.replace(/[^a-zA-Z0-9]/g, '_') || 'Tailored'}_${template}_Resume.docx`;
   saveAs(blob, filename);
 };
 
-// Main export function - determines format and generates accordingly
+// Legacy function for backward compatibility
 export const downloadModifiedResume = async (
   modifications: ResumeModifications,
   resumeName: string = 'Candidate',
   preferDocx: boolean = false
 ): Promise<void> => {
-  const file = storedOriginalFile;
+  const resumeData: ResumeData = {
+    name: resumeName,
+    title: 'Professional',
+    skills: modifications.originalSkills,
+    experience: modifications.experienceChanges.map(c => ({
+      text: c.modified,
+      isModified: c.original !== c.modified,
+    })),
+  };
   
-  if (file?.name.endsWith('.docx') || file?.name.endsWith('.doc') || preferDocx) {
-    await generateModifiedDocx(modifications, resumeName);
-  } else {
-    await generateModifiedPdf(modifications, resumeName);
-  }
+  await downloadTemplateResume('modern', resumeData, modifications);
 };
