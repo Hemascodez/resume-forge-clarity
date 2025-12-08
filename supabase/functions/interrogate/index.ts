@@ -78,17 +78,69 @@ serve(async (req) => {
     // Determine if this is the first message (no conversation history and no user answer)
     const isFirstMessage = conversationHistory.length === 0 && !userAnswer;
 
+    // Calculate current ATS score to include in AI context
+    const calculateCurrentATS = (resumeSkills: string[], jdSkills: string[], confirmedSoFar: string[] = []): number => {
+      const allSkills = [...new Set([...resumeSkills, ...confirmedSoFar])];
+      const normalizedJD = jdSkills.map(s => s.toLowerCase().trim());
+      const normalizedResume = allSkills.map(s => s.toLowerCase().trim());
+      
+      let matches = 0;
+      normalizedJD.forEach(jdSkill => {
+        if (normalizedResume.some(rs => rs.includes(jdSkill) || jdSkill.includes(rs))) {
+          matches++;
+        }
+      });
+      
+      const skillScore = jdSkills.length > 0 ? (matches / jdSkills.length) * 100 : 50;
+      // Weighted: skills 40%, base 60%
+      const baseScore = 60;
+      const score = Math.round(baseScore + (skillScore * 0.4));
+      return Math.max(60, Math.min(100, score)); // Minimum 60, max 100
+    };
+
+    // Extract confirmed skills from conversation history
+    const extractConfirmedFromHistory = (): string[] => {
+      const confirmed: string[] = [...resume.skills];
+      for (const msg of conversationHistory) {
+        if (msg.role === 'user') {
+          const content = msg.content.toLowerCase();
+          if (content.includes('yes') || content.includes('add') || content.includes('have')) {
+            // Try to find skill mentions in the preceding assistant message
+            const idx = conversationHistory.indexOf(msg);
+            if (idx > 0) {
+              const prevMsg = conversationHistory[idx - 1];
+              if (prevMsg.role === 'assistant') {
+                for (const skill of jobDescription.skills) {
+                  if (prevMsg.content.toLowerCase().includes(skill.toLowerCase())) {
+                    confirmed.push(skill);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      return [...new Set(confirmed)];
+    };
+
+    const confirmedSoFar = extractConfirmedFromHistory();
+    const currentATSScore = calculateCurrentATS(resume.skills, jobDescription.skills, confirmedSoFar);
+
     const systemPrompt = `You are ResumeAI — a fast, credibility-checking, funny-but-serious resume generator.
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.
 You must never hallucinate or add anything the user did not explicitly confirm.
 
 CRITICAL: You HAVE FULL ACCESS to the candidate's resume below. You can see their name, skills, and all experience. DO NOT ever say you cannot see their resume.
 
+CURRENT ATS SCORE: ${currentATSScore}% (minimum is always 60%)
+Include the current ATS score in your response to keep the user informed!
+
 TONE:
 - Fast, clear, friendly, slightly funny — but still serious enough for career use.
 - If the user exaggerates something unrealistic, gently tease them ("Are you sure you built the entire product alone? 👀") and request credible clarification.
 - Ask ONLY essential, short verification questions (max 18 words).
 - NEVER waste the user's time with long explanations.
+- ALWAYS mention the current ATS score in your question to show progress!
 
 ===== CANDIDATE'S RESUME DATA (THIS IS THEIR ACTUAL RESUME) =====
 NAME: ${resume.name || 'Not extracted'}
@@ -116,12 +168,14 @@ FIRST MESSAGE BEHAVIOR:
 Since this is the FIRST message, you MUST:
 1. Greet the user by name if available (use "${resume.name || 'there'}")
 2. Confirm you have read their resume by mentioning 2-3 specific skills/experience you see
-3. Identify the GAP between their resume and the JD (list specific missing skills)
-4. Ask your FIRST clarifying question about ONE missing skill
+3. Tell them their CURRENT ATS score is ${currentATSScore}%
+4. Identify the GAP between their resume and the JD (list specific missing skills)
+5. Ask your FIRST clarifying question about ONE missing skill
 
 Example first message format:
 {
-  "question": "Hey [Name]! I see you have React and TypeScript experience at [Company]. Nice! 🔥 For this [JD Title] role, I noticed [Missing Skill] is required but not on your resume. Have you worked with it?",
+  "question": "Hey [Name]! I see you have React and TypeScript experience at [Company]. Nice! 🔥 Your current ATS score is ${currentATSScore}%. For this [JD Title] role, I noticed [Missing Skill] is required but not on your resume. Have you worked with it?",
+  "atsScore": ${currentATSScore},
   "skillBeingProbed": "the missing skill",
   "context": "Required by JD",
   "isComplete": false,
@@ -143,10 +197,12 @@ RULES FOR QUESTIONING:
 4) Ask short, fast, single-purpose questions.
 5) Never ask more than 1 question at a time.
 6) Stop questioning once all unclear JD skills are verified or rejected.
+7) ALWAYS include the current ATS score (${currentATSScore}%) in your question to show progress!
 
 RESPONSE FORMAT - YOU MUST RESPOND WITH ONLY THIS JSON STRUCTURE:
 {
-  "question": "Your short clarifying question (max 18 words)",
+  "question": "Your short clarifying question mentioning ATS score (max 25 words)",
+  "atsScore": ${currentATSScore},
   "skillBeingProbed": "The specific skill you're asking about",
   "context": "Why this skill matters (1 sentence max)",
   "isComplete": false,
@@ -163,6 +219,7 @@ RESPONSE FORMAT - YOU MUST RESPOND WITH ONLY THIS JSON STRUCTURE:
 
 CRITICAL: 
 - Respond with ONLY the JSON object above. No text before or after. No markdown code blocks.
+- ALWAYS include atsScore field with the current score (${currentATSScore}).
 - ALWAYS include resumeSummary with data from the candidate's actual resume above.
 - confirmedSkills should include skills that ARE on their resume AND any new ones user confirms.
 - gapsIdentified should be skills from JD that are NOT on their resume.

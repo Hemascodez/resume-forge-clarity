@@ -179,8 +179,11 @@ function calculateATSScore(
     suggestions.push('Consider adjusting your job titles to better match the target role');
   }
   
+  // Ensure minimum score of 60
+  const finalTotal = Math.min(100, Math.max(60, total));
+  
   return {
-    total: Math.min(100, Math.max(0, total)),
+    total: finalTotal,
     breakdown: {
       skillMatch: Math.round(skillMatchScore),
       keywordMatch: Math.round(keywordMatchScore),
