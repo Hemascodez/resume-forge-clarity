@@ -8,6 +8,7 @@ import { JoystickButton, DialKnob, DPad } from "@/components/JoystickButton";
 import { JoystickController, MiniJoystick, ControllerCard } from "@/components/JoystickElements";
 import { Sparkles, Zap, Shield, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { storeOriginalFile } from "@/lib/resumeEditor";
 
 // Simple JD parser - extracts structured data from job description text
 const parseJobDescription = (text: string) => {
@@ -150,11 +151,15 @@ const LandingPage: React.FC = () => {
       const parsedJD = parseJobDescription(jobDescription);
       const parsedResume = await parseResume(resumeFile);
       
+      // Store original file for later modification
+      storeOriginalFile(resumeFile, parsedResume.rawText);
+      
       // Navigate with parsed data
       navigate("/interrogation", {
         state: {
           jobDescription: parsedJD,
           resume: parsedResume,
+          originalFileName: resumeFile.name,
         },
       });
     } catch (error) {

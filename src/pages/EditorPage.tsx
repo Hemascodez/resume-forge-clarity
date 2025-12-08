@@ -8,7 +8,7 @@ import { ControllerCard, TriggerProgress, JoystickController, MiniJoystick } fro
 import { ArrowLeft, Download, FileText, Briefcase, Zap, LogOut, Loader2, LayoutDashboard } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { generateResumePDF } from "@/lib/generateResumePDF";
+import { downloadModifiedResume, ResumeModifications } from "@/lib/resumeEditor";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useATSScore } from "@/hooks/useATSScore";
@@ -148,7 +148,10 @@ const EditorPage: React.FC = () => {
     }
   };
 
-  const handleDownload = () => {
+  // Track original experience for modifications
+  const originalExperience = locationState?.resume?.experience?.[0]?.bullets || [];
+  
+  const handleDownload = async () => {
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -162,17 +165,26 @@ const EditorPage: React.FC = () => {
       });
     }
     
-    // Generate and download PDF
-    generateResumePDF({
-      name: fallbackResume.name,
-      title: fallbackResume.title,
-      skills: resumeData.skills,
-      experience,
+    // Build modifications object
+    const modifications: ResumeModifications = {
+      originalSkills: locationState?.resume?.skills || [],
+      confirmedSkills: confirmedSkills,
+      experienceChanges: experience.map((exp, idx) => ({
+        original: originalExperience[idx] || '',
+        modified: exp.text,
+      })).filter(change => change.original !== change.modified),
       jobTitle: jd.title,
       company: jd.company,
-    });
+    };
     
-    toast.success("Resume downloaded successfully!");
+    try {
+      // Download modified resume (preserves original format)
+      await downloadModifiedResume(modifications, fallbackResume.name);
+      toast.success("Resume downloaded successfully!");
+    } catch (error) {
+      console.error("Error downloading resume:", error);
+      toast.error("Error downloading resume. Please try again.");
+    }
   };
 
   const handleSignOut = async () => {
