@@ -41,9 +41,9 @@ serve(async (req) => {
   }
 
   try {
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!geminiApiKey) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
     const rawBody = await req.json();
@@ -78,19 +78,12 @@ serve(async (req) => {
     // Determine if this is the first message (no conversation history and no user answer)
     const isFirstMessage = conversationHistory.length === 0 && !userAnswer;
 
-    // AI-powered ATS calculation using Lovable AI (Gemini)
+    // AI-powered ATS calculation using Gemini
     const calculateCurrentATSWithAI = async (
       jd: typeof jobDescription, 
       res: typeof resume,
       confirmedSoFar: string[] = []
     ): Promise<number> => {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      
-      if (!LOVABLE_API_KEY) {
-        console.error("LOVABLE_API_KEY not configured, using fallback score");
-        return 55; // Fallback score
-      }
-
       const allSkills = [...new Set([...res.skills, ...confirmedSoFar])];
       
       const jdText = `
@@ -133,25 +126,27 @@ Consider: skill overlap, keyword matches, experience relevance, and job title al
 Return ONLY the number, nothing else.`;
 
       try {
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [{ role: "user", content: prompt }],
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 50,
+            }
           }),
         });
 
         if (!response.ok) {
-          console.error("AI gateway error:", response.status);
+          console.error("Gemini API error:", response.status);
           return 55;
         }
 
         const data = await response.json();
-        const content = data.choices?.[0]?.message?.content?.trim();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
         const score = parseInt(content, 10);
         
         if (isNaN(score) || score < 0 || score > 100) {
@@ -194,13 +189,13 @@ Return ONLY the number, nothing else.`;
     const confirmedSoFar = extractConfirmedFromHistory();
     
     // Calculate ATS score using AI
-    console.log('Calculating ATS score with AI...');
+    console.log('Calculating ATS score with Gemini...');
     const currentATSScore = await calculateCurrentATSWithAI(
       jobDescription,
       resume,
       confirmedSoFar
     );
-    console.log('AI ATS Score:', currentATSScore);
+    console.log('Gemini ATS Score:', currentATSScore);
 
     const systemPrompt = `You are ResumeAI — a fast, credibility-checking, funny-but-serious resume generator.
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.
@@ -319,39 +314,40 @@ CRITICAL:
 - gapsIdentified should be skills from JD that are NOT on their resume.
 - When all gaps are addressed with complete experience details, set isComplete to true and provide summary.`;
 
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory,
-    ];
-
-    if (userAnswer) {
-      messages.push({ role: 'user', content: userAnswer });
-    } else {
-      messages.push({ 
-        role: 'user', 
-        content: 'Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.' 
-      });
+    // Build conversation for Gemini
+    let conversationText = systemPrompt + "\n\n";
+    
+    for (const msg of conversationHistory) {
+      conversationText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n\n`;
     }
 
-    console.log('Calling OpenAI GPT-4o-mini with', messages.length, 'messages');
+    if (userAnswer) {
+      conversationText += `User: ${userAnswer}\n\n`;
+    } else {
+      conversationText += `User: Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.\n\n`;
+    }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    conversationText += "Assistant:";
+
+    console.log('Calling Gemini with conversation length:', conversationText.length);
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages,
-        temperature: 0.7,
-        max_tokens: 1500,
+        contents: [{ parts: [{ text: conversationText }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2048,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
+      console.error('Gemini API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
@@ -360,13 +356,13 @@ CRITICAL:
         });
       }
       
-      throw new Error(`OpenAI API error: ${response.status}`);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.choices?.[0]?.message?.content;
+    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    console.log('OpenAI response received:', aiResponse?.substring(0, 500));
+    console.log('Gemini response received:', aiResponse?.substring(0, 500));
 
     let parsedResponse;
     try {
