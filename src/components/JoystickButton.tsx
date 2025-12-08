@@ -20,7 +20,7 @@ export const JoystickButton: React.FC<JoystickButtonProps> = ({
 }) => {
   const sizeClasses = {
     sm: "min-w-10 h-10 text-xs",
-    md: "min-w-14 h-14 px-4 text-sm",
+    md: "min-w-14 h-14 px-5 text-sm",
     lg: "min-w-20 h-20 px-6 text-base"
   };
 
@@ -66,7 +66,7 @@ export const JoystickButton: React.FC<JoystickButtonProps> = ({
       
       {/* Inner button with 3D effect */}
       <div className={cn(
-        "absolute inset-1.5 rounded-full bg-gradient-to-b flex items-center justify-center font-bold text-primary-foreground transition-all duration-200",
+        "absolute inset-1.5 rounded-full bg-gradient-to-b flex items-center justify-center font-bold text-primary-foreground transition-all duration-200 whitespace-nowrap px-3",
         style.inner,
         style.shadow,
         style.glow
