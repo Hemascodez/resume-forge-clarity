@@ -174,6 +174,7 @@ const InterrogationPage: React.FC = () => {
                 variant="neutral"
                 size="md"
                 onClick={() => handleQuickReply("no")}
+                className="border-destructive text-destructive"
               >
                 <X className="w-5 h-5" />
               </JoystickButton>

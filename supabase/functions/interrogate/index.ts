@@ -41,9 +41,9 @@ serve(async (req) => {
   }
 
   try {
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!geminiApiKey) {
-      throw new Error('GEMINI_API_KEY is not configured');
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     const rawBody = await req.json();
@@ -78,12 +78,19 @@ serve(async (req) => {
     // Determine if this is the first message (no conversation history and no user answer)
     const isFirstMessage = conversationHistory.length === 0 && !userAnswer;
 
-    // AI-powered ATS calculation using Gemini
+    // AI-powered ATS calculation using Lovable AI (Gemini)
     const calculateCurrentATSWithAI = async (
       jd: typeof jobDescription, 
       res: typeof resume,
       confirmedSoFar: string[] = []
     ): Promise<number> => {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      
+      if (!LOVABLE_API_KEY) {
+        console.error("LOVABLE_API_KEY not configured, using fallback score");
+        return 55; // Fallback score
+      }
+
       const allSkills = [...new Set([...res.skills, ...confirmedSoFar])];
       
       const jdText = `
@@ -126,27 +133,25 @@ Consider: skill overlap, keyword matches, experience relevance, and job title al
 Return ONLY the number, nothing else.`;
 
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.3,
-              maxOutputTokens: 50,
-            }
+            model: "google/gemini-2.5-flash",
+            messages: [{ role: "user", content: prompt }],
           }),
         });
 
         if (!response.ok) {
-          console.error("Gemini API error:", response.status);
+          console.error("AI gateway error:", response.status);
           return 55;
         }
 
         const data = await response.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        const content = data.choices?.[0]?.message?.content?.trim();
         const score = parseInt(content, 10);
         
         if (isNaN(score) || score < 0 || score > 100) {
@@ -189,13 +194,13 @@ Return ONLY the number, nothing else.`;
     const confirmedSoFar = extractConfirmedFromHistory();
     
     // Calculate ATS score using AI
-    console.log('Calculating ATS score with Gemini...');
+    console.log('Calculating ATS score with AI...');
     const currentATSScore = await calculateCurrentATSWithAI(
       jobDescription,
       resume,
       confirmedSoFar
     );
-    console.log('Gemini ATS Score:', currentATSScore);
+    console.log('AI ATS Score:', currentATSScore);
 
     const systemPrompt = `You are ResumeAI — a fast, credibility-checking, funny-but-serious resume generator.
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.
@@ -314,40 +319,39 @@ CRITICAL:
 - gapsIdentified should be skills from JD that are NOT on their resume.
 - When all gaps are addressed with complete experience details, set isComplete to true and provide summary.`;
 
-    // Build conversation for Gemini
-    let conversationText = systemPrompt + "\n\n";
-    
-    for (const msg of conversationHistory) {
-      conversationText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n\n`;
-    }
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory,
+    ];
 
     if (userAnswer) {
-      conversationText += `User: ${userAnswer}\n\n`;
+      messages.push({ role: 'user', content: userAnswer });
     } else {
-      conversationText += `User: Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.\n\n`;
+      messages.push({ 
+        role: 'user', 
+        content: 'Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.' 
+      });
     }
 
-    conversationText += "Assistant:";
+    console.log('Calling OpenAI GPT-4o-mini with', messages.length, 'messages');
 
-    console.log('Calling Gemini with conversation length:', conversationText.length);
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: conversationText }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        }
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.7,
+        max_tokens: 1500,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
+      console.error('OpenAI API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
@@ -356,72 +360,21 @@ CRITICAL:
         });
       }
       
-      throw new Error(`Gemini API error: ${response.status}`);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const aiResponse = data.choices?.[0]?.message?.content;
 
-    console.log('Gemini response received:', aiResponse?.substring(0, 500));
+    console.log('OpenAI response received:', aiResponse?.substring(0, 500));
 
     let parsedResponse;
     try {
-      // Try to extract JSON from the response - handle markdown code blocks
-      let jsonStr = aiResponse;
-      
-      // Remove markdown code block wrapper if present
-      if (aiResponse.includes('```json')) {
-        const jsonMatch = aiResponse.match(/```json\n?([\s\S]*?)\n?```/);
-        if (jsonMatch && jsonMatch[1]) {
-          jsonStr = jsonMatch[1].trim();
-        }
-      } else if (aiResponse.includes('```')) {
-        const jsonMatch = aiResponse.match(/```\n?([\s\S]*?)\n?```/);
-        if (jsonMatch && jsonMatch[1]) {
-          jsonStr = jsonMatch[1].trim();
-        }
-      }
-      
-      // If it's still not valid JSON, try to extract just the JSON object
-      if (!jsonStr.startsWith('{')) {
-        const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
-        if (objectMatch) {
-          jsonStr = objectMatch[0];
-        }
-      }
-      
-      // Handle potentially truncated JSON by attempting to close it
-      let parseAttempt = jsonStr;
-      let parsed = null;
-      
-      // Try parsing as-is first
-      try {
-        parsed = JSON.parse(parseAttempt);
-      } catch {
-        // If truncated, try to close the JSON properly
-        // Count open braces/brackets and close them
-        const openBraces = (parseAttempt.match(/\{/g) || []).length;
-        const closeBraces = (parseAttempt.match(/\}/g) || []).length;
-        const openBrackets = (parseAttempt.match(/\[/g) || []).length;
-        const closeBrackets = (parseAttempt.match(/\]/g) || []).length;
-        
-        // Add missing closing brackets/braces
-        let fixedJson = parseAttempt;
-        // Remove trailing comma if any
-        fixedJson = fixedJson.replace(/,\s*$/, '');
-        // Close arrays
-        for (let i = 0; i < openBrackets - closeBrackets; i++) {
-          fixedJson += ']';
-        }
-        // Close objects
-        for (let i = 0; i < openBraces - closeBraces; i++) {
-          fixedJson += '}';
-        }
-        
-        parsed = JSON.parse(fixedJson);
-      }
-      
-      parsedResponse = parsed;
+      // Try to extract JSON from the response
+      const jsonMatch = aiResponse.match(/```json\n?([\s\S]*?)\n?```/) || 
+                        aiResponse.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : aiResponse;
+      parsedResponse = JSON.parse(jsonStr);
       
       // Ensure resumeSummary is populated
       if (!parsedResponse.resumeSummary) {
@@ -434,20 +387,9 @@ CRITICAL:
       }
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
-      console.error('Raw response:', aiResponse);
-      
-      // Extract question from raw text if possible
-      let extractedQuestion = aiResponse;
-      if (aiResponse.includes('"question"')) {
-        const questionMatch = aiResponse.match(/"question"\s*:\s*"([^"]+)"/);
-        if (questionMatch && questionMatch[1]) {
-          extractedQuestion = questionMatch[1];
-        }
-      }
-      
       // Create a structured response from the raw text
       parsedResponse = {
-        question: extractedQuestion,
+        question: aiResponse,
         skillBeingProbed: 'general',
         context: '',
         isComplete: false,

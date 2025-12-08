@@ -40,36 +40,19 @@ serve(async (req) => {
     const html = await response.text();
     console.log('Fetched HTML length:', html.length);
 
-    // Check for common login/block indicators
-    const lowerHtml = html.toLowerCase();
-    const isBlocked = lowerHtml.includes('sign in') && lowerHtml.includes('linkedin') && !lowerHtml.includes('job-description');
-    
-    if (isBlocked) {
-      console.log('Detected login wall or blocked content');
-      return new Response(
-        JSON.stringify({ error: 'This job posting requires login to view. Please paste the job description text directly instead of using the URL.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-    
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not configured');
-    }
-
-    // Use Gemini AI to extract job description from HTML
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    // Use Lovable AI to extract job description from HTML
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
       },
       body: JSON.stringify({
-        contents: [
+        model: "google/gemini-2.5-flash",
+        messages: [
           {
-            parts: [
-              {
-                text: `You are a job description extractor. Extract the complete job description from the provided HTML content.
+            role: "system",
+            content: `You are a job description extractor. Extract the complete job description from the provided HTML content.
             
 Extract and return ONLY the job posting content including:
 - Job title
@@ -82,37 +65,32 @@ Extract and return ONLY the job posting content including:
 - Any other relevant job details
 
 Format the output as clean, readable text (not HTML). Remove any navigation, ads, or unrelated content.
-If the page appears to be a login page, access denied page, or you cannot find a job description, return exactly: NO_JOB_FOUND
-
-Extract the job description from this HTML:
-
-${html.slice(0, 50000)}`
-              }
-            ]
+If you cannot find a job description, return an empty string.`
+          },
+          {
+            role: "user",
+            content: `Extract the job description from this HTML:\n\n${html.slice(0, 50000)}`
           }
         ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 4000,
-        }
+        temperature: 0.1,
+        max_tokens: 4000,
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error('Gemini API error:', errorText);
+      console.error('AI API error:', errorText);
       throw new Error('Failed to extract job description');
     }
 
     const aiData = await aiResponse.json();
-    const jobDescription = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    const jobDescription = aiData.choices?.[0]?.message?.content?.trim() || '';
 
     console.log('Extracted job description length:', jobDescription.length);
-    console.log('Job description preview:', jobDescription.slice(0, 200));
 
-    if (!jobDescription || jobDescription.length < 50 || jobDescription.includes('NO_JOB_FOUND')) {
+    if (!jobDescription || jobDescription.length < 50) {
       return new Response(
-        JSON.stringify({ error: 'Could not extract job description from this URL. The page may require login or the job posting may have expired. Please paste the job description text directly.' }),
+        JSON.stringify({ error: 'Could not extract job description from this URL' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

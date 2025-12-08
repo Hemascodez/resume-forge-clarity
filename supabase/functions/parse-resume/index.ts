@@ -36,33 +36,31 @@ serve(async (req) => {
     }
     const base64 = btoa(binary);
 
-    // Use Gemini AI to parse the resume
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    // Use Lovable AI to parse the resume
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    if (!GEMINI_API_KEY) {
-      console.error('GEMINI_API_KEY not configured');
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY not configured');
       return new Response(JSON.stringify({ error: 'AI API key not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Sending resume to Gemini AI for parsing...');
+    console.log('Sending resume to Lovable AI for parsing...');
 
-    // Determine mime type
-    const mimeType = file.type || 'application/pdf';
-
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [
+        model: 'google/gemini-2.5-flash',
+        messages: [
           {
-            parts: [
-              {
-                text: `You are a resume parser. Extract structured information from this resume.
+            role: 'system',
+            content: `You are a resume parser. Extract structured information from resumes.
             
 ALWAYS respond with a valid JSON object with these exact fields:
 {
@@ -92,29 +90,31 @@ ALWAYS respond with a valid JSON object with these exact fields:
 
 Be thorough in extracting ALL skills, experience items, and achievements.
 If information is not available, use empty strings or empty arrays.
-ONLY respond with the JSON object, no other text.
-
-Parse this resume (${file.name}) and extract all information. The file is a ${file.type} document.`
+ONLY respond with the JSON object, no other text.`
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Parse this resume (${file.name}) and extract all information. The file is a ${file.type} document.`
               },
               {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64
+                type: 'image_url',
+                image_url: {
+                  url: `data:${file.type || 'application/pdf'};base64,${base64}`
                 }
               }
             ]
           }
         ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4096,
-        }
+        max_tokens: 4096,
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error('Gemini AI error:', aiResponse.status, errorText);
+      console.error('Lovable AI error:', aiResponse.status, errorText);
       
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
@@ -123,11 +123,18 @@ Parse this resume (${file.name}) and extract all information. The file is a ${fi
         });
       }
       
+      if (aiResponse.status === 402) {
+        return new Response(JSON.stringify({ error: 'AI credits depleted. Please add funds.' }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
       throw new Error(`AI parsing failed: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
-    const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const content = aiData.choices?.[0]?.message?.content || '';
     
     console.log('AI response received, length:', content.length);
     console.log('AI response preview:', content.substring(0, 500));

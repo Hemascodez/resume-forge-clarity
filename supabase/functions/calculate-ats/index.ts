@@ -61,10 +61,10 @@ async function calculateATSWithAI(
   },
   additionalSkills: string[] = []
 ): Promise<ATSScoreResponse> {
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
+  if (!LOVABLE_API_KEY) {
+    throw new Error("LOVABLE_API_KEY is not configured");
   }
 
   const allSkills = [...new Set([...resume.skills, ...additionalSkills])];
@@ -120,33 +120,31 @@ Be realistic and accurate:
 
 Return ONLY the JSON object, no other text.`;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      contents: [
-        { parts: [{ text: prompt }] }
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "user", content: prompt }
       ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
-      }
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("Gemini API error:", response.status, errorText);
-    throw new Error(`Gemini API error: ${response.status}`);
+    console.error("AI gateway error:", response.status, errorText);
+    throw new Error(`AI gateway error: ${response.status}`);
   }
 
   const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const content = data.choices?.[0]?.message?.content;
   
   if (!content) {
-    throw new Error("No response from Gemini AI");
+    throw new Error("No response from AI");
   }
 
   // Parse the JSON from the response
@@ -199,7 +197,7 @@ serve(async (req) => {
     const { jobDescription, resume, confirmedSkills, tailoredExperience } = parseResult.data;
 
     // Calculate original score (without confirmed skills)
-    console.log('Calculating original ATS score with Gemini...');
+    console.log('Calculating original ATS score with AI...');
     const originalScore = await calculateATSWithAI(
       jobDescription,
       resume,
@@ -226,7 +224,7 @@ serve(async (req) => {
     }
 
     // Calculate new score with AI
-    console.log('Calculating enhanced ATS score with Gemini...');
+    console.log('Calculating enhanced ATS score with AI...');
     const newScore = await calculateATSWithAI(
       jobDescription,
       { ...resume, experience: enhancedExperience },
