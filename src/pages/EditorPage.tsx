@@ -86,22 +86,44 @@ const EditorPage: React.FC = () => {
   const resumeData = locationState?.resume || fallbackResume;
   const confirmedSkills = locationState?.confirmedSkills || [];
   
-  // Build initial experience from resume data or confirmed skills
+  // Build initial experience from resume data AND add AI-enhanced bullets for confirmed skills
   const buildInitialExperience = () => {
-    if (locationState?.resume?.experience?.[0]?.bullets) {
-      return locationState.resume.experience[0].bullets.map((bullet, idx) => ({
-        text: bullet,
-        isModified: idx < confirmedSkills.length, // Mark first N as modified based on confirmed skills
-      }));
+    const experienceItems: { text: string; isModified: boolean }[] = [];
+    
+    // First, add ALL original experience bullets from the uploaded resume
+    if (locationState?.resume?.experience) {
+      for (const exp of locationState.resume.experience) {
+        for (const bullet of exp.bullets) {
+          experienceItems.push({
+            text: bullet,
+            isModified: false, // Original content
+          });
+        }
+      }
     }
-    // Generate experience bullets from confirmed skills
-    return confirmedSkills.length > 0 ? confirmedSkills.map(skill => ({
-      text: `Demonstrated expertise in ${skill} through hands-on project work`,
-      isModified: true,
-    })) : [
-      { text: "Led development of customer-facing applications", isModified: false },
-      { text: "Collaborated with cross-functional teams", isModified: false },
-    ];
+    
+    // Then, add AI-enhanced bullets for confirmed skills that weren't in original resume
+    const originalSkillsLower = (locationState?.resume?.skills || []).map(s => s.toLowerCase());
+    const newSkills = confirmedSkills.filter(
+      skill => !originalSkillsLower.includes(skill.toLowerCase())
+    );
+    
+    for (const skill of newSkills) {
+      experienceItems.push({
+        text: `Demonstrated proficiency in ${skill} through hands-on project implementation`,
+        isModified: true, // AI-added content
+      });
+    }
+    
+    // If no experience at all, provide placeholder
+    if (experienceItems.length === 0) {
+      return [
+        { text: "Led development of customer-facing applications", isModified: false },
+        { text: "Collaborated with cross-functional teams", isModified: false },
+      ];
+    }
+    
+    return experienceItems;
   };
   
   const [experience, setExperience] = useState(buildInitialExperience);
@@ -227,6 +249,7 @@ const EditorPage: React.FC = () => {
           title: locationState?.resume?.title || 'Professional',
           skills: resumeData.skills,
           experience,
+          originalExperience: locationState?.resume?.experience,
         }}
         jobTitle={jd.title}
         company={jd.company}

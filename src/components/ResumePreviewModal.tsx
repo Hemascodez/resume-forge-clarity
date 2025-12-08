@@ -16,6 +16,12 @@ interface ExperienceItem {
   isModified: boolean;
 }
 
+interface ExperienceEntry {
+  title: string;
+  company: string;
+  bullets: string[];
+}
+
 interface ResumePreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,6 +31,7 @@ interface ResumePreviewModalProps {
     title: string;
     skills: string[];
     experience: ExperienceItem[];
+    originalExperience?: ExperienceEntry[];
   };
   jobTitle?: string;
   company?: string;
@@ -83,24 +90,42 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({
                 <h1 className="text-2xl font-bold text-foreground mb-1">
                   {resumeData.name}
                 </h1>
-                <p className="text-primary font-medium">{resumeData.title}</p>
+                <p className="text-primary font-medium mb-2">{resumeData.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  email@example.com • (555) 123-4567 • Location
+                </p>
               </div>
 
-              {/* Skills Section */}
+              {/* Summary/Objective - AI generated based on job */}
+              {jobTitle && (
+                <div className="mb-6">
+                  <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-2">
+                    Professional Summary
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Experienced {resumeData.title} with expertise in {resumeData.skills.slice(0, 3).join(', ')}. 
+                    Seeking to leverage skills and experience as {jobTitle} at {company}.
+                  </p>
+                </div>
+              )}
+
+              {/* Skills Section - Shows ALL skills (original + new) */}
               <div className="mb-6">
                 <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">
                   Skills
                 </h2>
                 <div className="flex flex-wrap gap-2">
-                  {resumeData.skills.map((skill, idx) => (
+                  {/* Original skills */}
+                  {originalSkills.map((skill, idx) => (
                     <Badge
-                      key={idx}
+                      key={`orig-${idx}`}
                       variant="secondary"
                       className="text-xs"
                     >
                       {skill}
                     </Badge>
                   ))}
+                  {/* Newly confirmed skills (highlighted) */}
                   {newSkills.map((skill, idx) => (
                     <Badge
                       key={`new-${idx}`}
@@ -112,37 +137,89 @@ export const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({
                 </div>
               </div>
 
-              {/* Experience Section */}
+              {/* Experience Section - Shows ALL experience with enhancements highlighted */}
+              <div className="mb-6">
+                <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">
+                  Professional Experience
+                </h2>
+                
+                {/* Show original experience structure if available */}
+                {resumeData.originalExperience && resumeData.originalExperience.length > 0 ? (
+                  <div className="space-y-4">
+                    {resumeData.originalExperience.map((exp, expIdx) => (
+                      <div key={expIdx} className="mb-4">
+                        <div className="flex justify-between items-baseline mb-2">
+                          <h3 className="font-semibold text-foreground text-sm">{exp.title}</h3>
+                          <span className="text-xs text-muted-foreground">{exp.company}</span>
+                        </div>
+                        <ul className="space-y-2">
+                          {exp.bullets.map((bullet, bulletIdx) => (
+                            <li key={bulletIdx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 shrink-0" />
+                              {bullet}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                    
+                    {/* AI-enhanced bullets section */}
+                    {resumeData.experience.filter(e => e.isModified).length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-dashed border-accent/30">
+                        <p className="text-xs text-accent font-medium mb-2">✨ AI-Enhanced Additions:</p>
+                        <ul className="space-y-2">
+                          {resumeData.experience.filter(e => e.isModified).map((item, idx) => (
+                            <li
+                              key={idx}
+                              className="flex items-start gap-2 text-sm p-2 rounded-lg bg-accent/5 border-l-2 border-accent"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent mt-2 shrink-0" />
+                              <span className="text-accent">{item.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Fallback: Show all experience items in a simple list */
+                  <ul className="space-y-3">
+                    {resumeData.experience.map((item, idx) => (
+                      <li
+                        key={idx}
+                        className={cn(
+                          "flex items-start gap-3 text-sm leading-relaxed p-2 rounded-lg transition-colors",
+                          item.isModified && "bg-accent/5 border-l-2 border-accent"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "w-1.5 h-1.5 rounded-full mt-2 shrink-0",
+                            item.isModified ? "bg-accent" : "bg-primary"
+                          )}
+                        />
+                        <span className={cn(
+                          item.isModified && "text-accent font-medium"
+                        )}>
+                          {item.text}
+                          {item.isModified && (
+                            <span className="ml-2 text-xs text-accent/70">(enhanced)</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Education Section (placeholder) */}
               <div>
                 <h2 className="text-sm font-bold text-foreground uppercase tracking-wider mb-3">
-                  Experience
+                  Education
                 </h2>
-                <ul className="space-y-3">
-                  {resumeData.experience.map((item, idx) => (
-                    <li
-                      key={idx}
-                      className={cn(
-                        "flex items-start gap-3 text-sm leading-relaxed p-2 rounded-lg transition-colors",
-                        item.isModified && "bg-accent/5 border-l-2 border-accent"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "w-1.5 h-1.5 rounded-full mt-2 shrink-0",
-                          item.isModified ? "bg-accent" : "bg-primary"
-                        )}
-                      />
-                      <span className={cn(
-                        item.isModified && "text-accent font-medium"
-                      )}>
-                        {item.text}
-                        {item.isModified && (
-                          <span className="ml-2 text-xs text-accent/70">(enhanced)</span>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-sm text-muted-foreground">
+                  Your education details from original resume
+                </p>
               </div>
 
               {/* Footer */}
