@@ -33,6 +33,7 @@ interface Resume {
     company: string;
     bullets: string[];
   }[];
+  rawText?: string;
 }
 
 export const useInterrogation = () => {
