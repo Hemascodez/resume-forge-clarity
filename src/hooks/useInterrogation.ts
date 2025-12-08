@@ -50,7 +50,7 @@ export const useInterrogation = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke('interrogate', {
-        body: { jobDescription, resume },
+        body: { jobDescription, resume, conversationHistory: [], userAnswer: null },
       });
 
       if (error) throw error;
