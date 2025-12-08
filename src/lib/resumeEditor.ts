@@ -24,6 +24,7 @@ export interface ResumeData {
   tools?: string[];
   experience: { text: string; isModified: boolean }[];
   originalExperience?: { title: string; company: string; date?: string; bullets: string[] }[];
+  newExperience?: { title: string; company: string; date?: string; bullets: string[] }[];
   education?: { degree: string; school: string; date?: string }[];
 }
 
@@ -1275,29 +1276,15 @@ const generatePdfResume = (
   pdf.line(margin, yPos, margin + 30, yPos);
   yPos += 6;
 
-  // Skills as comma-separated with new skills highlighted
+  // Skills as comma-separated - all in consistent style
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
-  let skillX = margin;
-  const skillY = yPos;
-  for (let i = 0; i < allSkills.length; i++) {
-    const skill = allSkills[i];
-    const isNew = newSkills.includes(skill);
-    const skillText = skill + (i < allSkills.length - 1 ? ', ' : '');
-    
-    pdf.setTextColor(isNew ? '#22c55e' : '#444444');
-    if (isNew) pdf.setFont('helvetica', 'bold');
-    else pdf.setFont('helvetica', 'normal');
-    
-    const textWidth = pdf.getTextWidth(skillText);
-    if (skillX + textWidth > pageWidth - margin) {
-      skillX = margin;
-      yPos += 5;
-    }
-    pdf.text(skillText, skillX, yPos);
-    skillX += textWidth;
-  }
-  yPos += 10;
+  pdf.setTextColor('#444444');
+  
+  const skillsText = allSkills.join(', ');
+  const skillLines = pdf.splitTextToSize(skillsText, contentWidth);
+  pdf.text(skillLines, margin, yPos);
+  yPos += skillLines.length * 4 + 6;
 
   // Experience Section
   pdf.setFont('helvetica', 'bold');
@@ -1350,24 +1337,43 @@ const generatePdfResume = (
     }
   }
 
-  // Add AI-enhanced bullets (modified experience)
-  const modifiedBullets = resumeData.experience.filter(exp => exp.isModified);
-  if (modifiedBullets.length > 0) {
+  // Add AI-enhanced experience entries (if any new experience was added)
+  // These should be properly formatted experience entries, not generic bullets
+  const newExperienceEntries = resumeData.newExperience || [];
+  for (const exp of newExperienceEntries) {
     if (yPos > 265) {
       pdf.addPage();
       yPos = margin;
     }
     
-    // Add enhanced bullets with green color
-    for (const bullet of modifiedBullets) {
+    // Job title and company - same style as original
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.setTextColor('#1a1a1a');
+    pdf.text(`${exp.title} @ ${exp.company}`, margin, yPos);
+    yPos += 5;
+    
+    if (exp.date) {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.setTextColor('#888888');
+      pdf.text(exp.date, margin, yPos);
+      yPos += 5;
+    }
+    
+    // Bullets - same style as original
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(10);
+    for (const bullet of exp.bullets) {
       if (yPos > 275) {
         pdf.addPage();
         yPos = margin;
       }
-      pdf.setFont('helvetica', 'normal');
-      yPos = addWrappedText(`• ${bullet.text}`, margin + 3, yPos, contentWidth - 6, 10, '#22c55e');
+      pdf.setTextColor('#444444');
+      yPos = addWrappedText(`• ${bullet}`, margin + 3, yPos, contentWidth - 6, 10, '#444444');
       yPos += 2;
     }
+    yPos += 4;
   }
 
   // Education Section
