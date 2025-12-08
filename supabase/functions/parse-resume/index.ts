@@ -23,36 +23,165 @@ serve(async (req) => {
 
     console.log('Parsing file:', file.name, 'type:', file.type, 'size:', file.size);
 
-    let text = '';
+    // Convert file to base64 for AI processing
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    const base64 = btoa(String.fromCharCode(...bytes));
+
+    // Use Lovable AI to parse the resume
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    // Handle different file types
-    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-      const arrayBuffer = await file.arrayBuffer();
-      text = await extractPdfText(arrayBuffer);
-      
-    } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-      text = await file.text();
-    } else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
-      text = await extractDocxText(await file.arrayBuffer());
-    } else {
-      text = await file.text();
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY not configured');
+      return new Response(JSON.stringify({ error: 'AI API key not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    console.log('Extracted text length:', text.length);
-    console.log('Extracted text preview:', text.substring(0, 400));
+    console.log('Sending resume to Lovable AI for parsing...');
 
-    // Parse the extracted text to find resume components
-    const { skills, experience, candidateName, candidateTitle } = parseResumeText(text);
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a resume parser. Extract structured information from resumes.
+            
+ALWAYS respond with a valid JSON object with these exact fields:
+{
+  "name": "Full name of the candidate",
+  "title": "Current or target job title",
+  "email": "Email if found or empty string",
+  "phone": "Phone if found or empty string",
+  "location": "Location if found or empty string",
+  "summary": "Professional summary/about section if present",
+  "skills": ["array", "of", "skills"],
+  "experience": [
+    {
+      "title": "Job title",
+      "company": "Company name",
+      "duration": "Date range",
+      "bullets": ["Achievement 1", "Achievement 2"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Degree name",
+      "institution": "School/University name",
+      "year": "Graduation year"
+    }
+  ]
+}
 
-    console.log('Parsed resume - Name:', candidateName, 'Title:', candidateTitle, 'Skills:', skills.length);
+Be thorough in extracting ALL skills, experience items, and achievements.
+If information is not available, use empty strings or empty arrays.
+ONLY respond with the JSON object, no other text.`
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Parse this resume (${file.name}) and extract all information. The file is a ${file.type} document.`
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${file.type || 'application/pdf'};base64,${base64}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4096,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('Lovable AI error:', aiResponse.status, errorText);
+      
+      if (aiResponse.status === 429) {
+        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      if (aiResponse.status === 402) {
+        return new Response(JSON.stringify({ error: 'AI credits depleted. Please add funds.' }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      throw new Error(`AI parsing failed: ${aiResponse.status}`);
+    }
+
+    const aiData = await aiResponse.json();
+    const content = aiData.choices?.[0]?.message?.content || '';
+    
+    console.log('AI response received, length:', content.length);
+    console.log('AI response preview:', content.substring(0, 500));
+
+    // Parse the JSON response from AI
+    let parsedResume;
+    try {
+      // Clean up the response - remove markdown code blocks if present
+      let cleanContent = content.trim();
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.slice(7);
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.slice(3);
+      }
+      if (cleanContent.endsWith('```')) {
+        cleanContent = cleanContent.slice(0, -3);
+      }
+      cleanContent = cleanContent.trim();
+      
+      parsedResume = JSON.parse(cleanContent);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      console.error('Raw content:', content);
+      
+      // Fallback: try to extract basic info using regex
+      parsedResume = {
+        name: extractName(content),
+        title: extractTitle(content),
+        skills: extractSkills(content),
+        experience: [],
+        education: [],
+        summary: '',
+        email: '',
+        phone: '',
+        location: ''
+      };
+    }
+
+    // Build the raw text for the interrogation
+    const rawText = buildRawText(parsedResume);
+
+    console.log('Parsed resume - Name:', parsedResume.name, 'Title:', parsedResume.title, 'Skills:', parsedResume.skills?.length || 0);
 
     return new Response(JSON.stringify({
       success: true,
-      text: text.slice(0, 50000),
-      skills: skills.slice(0, 30),
-      experience,
-      name: candidateName || 'Your Name',
-      title: candidateTitle || 'Professional',
+      text: rawText,
+      skills: parsedResume.skills || [],
+      experience: parsedResume.experience || [],
+      education: parsedResume.education || [],
+      name: parsedResume.name || 'Candidate',
+      title: parsedResume.title || 'Professional',
+      email: parsedResume.email || '',
+      phone: parsedResume.phone || '',
+      location: parsedResume.location || '',
+      summary: parsedResume.summary || '',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -68,283 +197,67 @@ serve(async (req) => {
   }
 });
 
-// Improved PDF text extraction
-async function extractPdfText(arrayBuffer: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(arrayBuffer);
+// Helper function to build raw text from parsed resume
+function buildRawText(resume: any): string {
+  const parts: string[] = [];
   
-  // Method 1: Extract from CMap encoded text (common in Google Docs PDFs)
-  let pdfString = '';
-  for (let i = 0; i < bytes.length; i++) {
-    pdfString += String.fromCharCode(bytes[i]);
+  if (resume.name) parts.push(`Name: ${resume.name}`);
+  if (resume.title) parts.push(`Title: ${resume.title}`);
+  if (resume.email) parts.push(`Email: ${resume.email}`);
+  if (resume.phone) parts.push(`Phone: ${resume.phone}`);
+  if (resume.location) parts.push(`Location: ${resume.location}`);
+  if (resume.summary) parts.push(`\nSummary:\n${resume.summary}`);
+  
+  if (resume.skills?.length > 0) {
+    parts.push(`\nSkills: ${resume.skills.join(', ')}`);
   }
   
-  const extractedTexts: string[] = [];
-  
-  // Method 2: Look for text in ToUnicode CMap (handles Google Docs/Skia PDFs better)
-  // Extract beginbfchar mappings
-  const bfcharMatches = pdfString.matchAll(/beginbfchar\s*([\s\S]*?)endbfchar/g);
-  const charMap = new Map<string, string>();
-  
-  for (const match of bfcharMatches) {
-    const lines = match[1].split('\n').filter(l => l.trim());
-    for (const line of lines) {
-      const parts = line.match(/<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/);
-      if (parts) {
-        const fromCode = parts[1];
-        const toCode = parts[2];
-        // Convert hex to character
-        try {
-          const charCode = parseInt(toCode, 16);
-          if (charCode > 31 && charCode < 65536) {
-            charMap.set(fromCode.toLowerCase(), String.fromCharCode(charCode));
-          }
-        } catch {}
-      }
-    }
-  }
-  
-  // Method 3: Extract text from BT/ET blocks using the CMap
-  const btEtBlocks = pdfString.matchAll(/BT[\s\S]*?ET/g);
-  
-  for (const block of btEtBlocks) {
-    const blockText = block[0];
-    
-    // Look for Tj operators (single text)
-    const tjMatches = blockText.matchAll(/\(([^)]*)\)\s*Tj/g);
-    for (const tj of tjMatches) {
-      const textContent = decodeEscapedString(tj[1]);
-      if (textContent.length > 0) {
-        extractedTexts.push(textContent);
-      }
-    }
-    
-    // Look for TJ operators (array of text with positioning)
-    const tjArrayMatches = blockText.matchAll(/\[((?:[^[\]]*|\[[^\]]*\])*)\]\s*TJ/gi);
-    for (const tjArray of tjArrayMatches) {
-      const content = tjArray[1];
-      const textParts = content.matchAll(/\(([^)]*)\)/g);
-      for (const part of textParts) {
-        const textContent = decodeEscapedString(part[1]);
-        if (textContent.length > 0) {
-          extractedTexts.push(textContent);
-        }
-      }
-    }
-    
-    // Look for hex encoded strings <hex>
-    const hexMatches = blockText.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g);
-    for (const hex of hexMatches) {
-      const decoded = decodeHexString(hex[1], charMap);
-      if (decoded.length > 0) {
-        extractedTexts.push(decoded);
-      }
-    }
-  }
-  
-  // Method 4: Fallback - extract all printable strings from PDF
-  if (extractedTexts.length < 5) {
-    const printableMatches = pdfString.matchAll(/\(([A-Za-z][A-Za-z\s\.,\-\']{2,})\)/g);
-    for (const match of printableMatches) {
-      const text = match[1].trim();
-      if (text.length > 2 && !/^\d+$/.test(text)) {
-        extractedTexts.push(text);
-      }
-    }
-  }
-  
-  // Method 5: Look for stream content and extract readable text
-  const streamMatches = pdfString.matchAll(/stream\s*([\s\S]*?)endstream/g);
-  for (const stream of streamMatches) {
-    // Try to find readable text in streams
-    const streamContent = stream[1];
-    const readableText = streamContent.match(/[A-Za-z]{3,}(?:\s+[A-Za-z]{2,})*/g);
-    if (readableText) {
-      for (const text of readableText) {
-        if (text.length > 5 && !text.includes('BT') && !text.includes('ET') && 
-            !text.includes('Tj') && !text.includes('TJ') && !text.includes('Tf')) {
-          // Only add if it looks like real content
-          if (/^[A-Z]/.test(text) || text.length > 10) {
-            extractedTexts.push(text);
-          }
+  if (resume.experience?.length > 0) {
+    parts.push('\nExperience:');
+    for (const exp of resume.experience) {
+      parts.push(`\n${exp.title} at ${exp.company} (${exp.duration || 'N/A'})`);
+      if (exp.bullets?.length > 0) {
+        for (const bullet of exp.bullets) {
+          parts.push(`• ${bullet}`);
         }
       }
     }
   }
   
-  // Join and clean up
-  let result = extractedTexts.join(' ')
-    .replace(/\s+/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between camelCase
-    .trim();
+  if (resume.education?.length > 0) {
+    parts.push('\nEducation:');
+    for (const edu of resume.education) {
+      parts.push(`${edu.degree} - ${edu.institution} (${edu.year || 'N/A'})`);
+    }
+  }
   
-  console.log('PDF extraction found', extractedTexts.length, 'text segments');
-  
-  return result;
+  return parts.join('\n');
 }
 
-// Decode PDF escaped strings
-function decodeEscapedString(str: string): string {
-  return str
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
-    .replace(/\\\(/g, '(')
-    .replace(/\\\)/g, ')')
-    .replace(/\\\\/g, '\\')
-    .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
+// Fallback extraction functions
+function extractName(text: string): string {
+  const nameMatch = text.match(/"name"\s*:\s*"([^"]+)"/i);
+  if (nameMatch) return nameMatch[1];
+  
+  const lines = text.split('\n').filter(l => l.trim());
+  for (const line of lines.slice(0, 5)) {
+    if (/^[A-Z][a-z]+\s+[A-Z][a-z]+/.test(line.trim())) {
+      return line.trim();
+    }
+  }
+  return '';
 }
 
-// Decode hex string using character map
-function decodeHexString(hex: string, charMap: Map<string, string>): string {
-  let result = '';
-  for (let i = 0; i < hex.length; i += 4) {
-    const code = hex.substring(i, i + 4).toLowerCase();
-    if (charMap.has(code)) {
-      result += charMap.get(code);
-    } else {
-      // Try 2-char code
-      const code2 = hex.substring(i, i + 2).toLowerCase();
-      if (charMap.has(code2)) {
-        result += charMap.get(code2);
-        i -= 2;
-      } else {
-        // Fallback: try to decode as UTF-16
-        const charCode = parseInt(code || code2, 16);
-        if (charCode > 31 && charCode < 127) {
-          result += String.fromCharCode(charCode);
-        }
-      }
-    }
-  }
-  return result;
+function extractTitle(text: string): string {
+  const titleMatch = text.match(/"title"\s*:\s*"([^"]+)"/i);
+  if (titleMatch) return titleMatch[1];
+  return '';
 }
 
-// Extract text from DOCX files
-async function extractDocxText(arrayBuffer: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(arrayBuffer);
-  
-  let docContent = '';
-  for (let i = 0; i < bytes.length; i++) {
-    const char = bytes[i];
-    if (char >= 32 && char <= 126) {
-      docContent += String.fromCharCode(char);
-    } else if (char === 10 || char === 13) {
-      docContent += '\n';
-    }
+function extractSkills(text: string): string[] {
+  const skillsMatch = text.match(/"skills"\s*:\s*\[([^\]]+)\]/i);
+  if (skillsMatch) {
+    return skillsMatch[1].split(',').map(s => s.replace(/"/g, '').trim()).filter(s => s);
   }
-  
-  // Extract text from XML tags
-  const textMatches = docContent.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
-  const extractedTexts = textMatches.map(match => {
-    const content = match.replace(/<[^>]+>/g, '');
-    return content;
-  });
-  
-  return extractedTexts.join(' ').replace(/\s+/g, ' ').trim();
-}
-
-// Parse resume text to extract structured data
-function parseResumeText(text: string): {
-  skills: string[];
-  experience: { title: string; company: string; bullets: string[] }[];
-  candidateName: string;
-  candidateTitle: string;
-} {
-  const skills: string[] = [];
-  const experience: { title: string; company: string; bullets: string[] }[] = [];
-  let candidateName = '';
-  let candidateTitle = '';
-  
-  const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(l => l && l.length > 1);
-  
-  console.log('Parsing', lines.length, 'lines. First 5:', lines.slice(0, 5));
-  
-  // Name extraction - try multiple strategies
-  for (let i = 0; i < Math.min(lines.length, 15); i++) {
-    const line = lines[i].trim();
-    
-    if (!line || line.length > 60 || line.length < 2) continue;
-    if (line.includes('@') || line.includes('http') || line.includes('www.')) continue;
-    if (/^(summary|experience|education|skills|objective|about|professional|contact|phone|email|address|linkedin)/i.test(line)) continue;
-    
-    // Pattern 1: Full name (First Last or First Middle Last)
-    if (!candidateName && /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}$/.test(line)) {
-      candidateName = line;
-      console.log('Found name pattern 1:', candidateName);
-      continue;
-    }
-    
-    // Pattern 2: Single capitalized name (common in some cultures)
-    if (!candidateName && /^[A-Z][a-z]{2,20}$/.test(line)) {
-      candidateName = line;
-      console.log('Found name pattern 2:', candidateName);
-      continue;
-    }
-    
-    // Pattern 3: ALL CAPS name
-    if (!candidateName && /^[A-Z]{2,}(?:\s+[A-Z]{2,}){0,3}$/.test(line) && line.length < 40) {
-      candidateName = line.split(' ').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
-      console.log('Found name pattern 3 (CAPS):', candidateName);
-      continue;
-    }
-    
-    // Pattern 4: Name in first clean line (letters, spaces, hyphens only)
-    if (!candidateName && i < 5 && /^[A-Za-z\s'-]+$/.test(line) && line.length >= 3 && line.length <= 40) {
-      candidateName = line;
-      console.log('Found name pattern 4 (clean line):', candidateName);
-      continue;
-    }
-    
-    // Title detection
-    const titleKeywords = ['developer', 'designer', 'engineer', 'manager', 'lead', 'director', 
-      'analyst', 'consultant', 'specialist', 'architect', 'coordinator', 'product', 
-      'senior', 'junior', 'associate', 'ux', 'ui', 'frontend', 'backend', 'full stack',
-      'data', 'software', 'web', 'mobile', 'devops', 'qa', 'tester', 'researcher'];
-    
-    if (!candidateTitle && line.length > 5 && line.length < 60) {
-      const lowerLine = line.toLowerCase();
-      if (titleKeywords.some(k => lowerLine.includes(k))) {
-        candidateTitle = line;
-        console.log('Found title:', candidateTitle);
-      }
-    }
-  }
-  
-  // Extract skills
-  const techKeywords = text.match(/\b(React|Angular|Vue|Node\.?js|Python|Java|JavaScript|TypeScript|SQL|PostgreSQL|MySQL|MongoDB|AWS|Azure|GCP|Docker|Kubernetes|GraphQL|REST|API|Git|GitHub|GitLab|CI\/CD|Agile|Scrum|Machine Learning|ML|AI|Artificial Intelligence|Data Science|Data Analysis|Redux|Next\.?js|Express|Django|Flask|Spring|Ruby|Rails|PHP|Laravel|Swift|Kotlin|Flutter|React Native|HTML|HTML5|CSS|CSS3|SASS|SCSS|Less|Tailwind|Bootstrap|Material UI|MUI|Figma|Sketch|Adobe XD|InVision|Framer|UI\/UX|UX|UI|User Experience|User Interface|Product Design|User Research|Prototyping|Wireframing|Design Systems|Design Thinking|Information Architecture|Usability Testing|A\/B Testing|Analytics|Google Analytics|Mixpanel|Hotjar|DevOps|Linux|Unix|Terraform|Jenkins|Ansible|Puppet|Chef|AWS Lambda|Serverless|Microservices|Jira|Confluence|Notion|Slack|Trello|Asana|Microsoft Office|Excel|PowerPoint|Word|Photoshop|Illustrator|After Effects|Premiere|Final Cut|Canva|InDesign|Balsamiq|Zeplin|Miro|Lucidchart|Visio|Tableau|Power BI|Looker|Metabase|Superset|Clarity|CleverTap|Amplitude|Segment|Heap|Pendo|FullStory|LogRocket|Sentry|New Relic|Datadog|Splunk|Elastic|Kibana|Grafana|Prometheus)\b/gi);
-  
-  if (techKeywords) {
-    const uniqueSkills = [...new Set(techKeywords.map(s => s.toLowerCase()))];
-    skills.push(...uniqueSkills);
-  }
-  
-  // Extract experience bullets
-  const bullets: string[] = [];
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if ((trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*') || trimmed.startsWith('●') || trimmed.startsWith('○')) && trimmed.length > 20) {
-      bullets.push(trimmed.replace(/^[-•*●○]\s*/, '').slice(0, 500));
-    } 
-    else if (trimmed.length > 40 && trimmed.length < 500) {
-      const actionWords = ['developed', 'designed', 'led', 'managed', 'created', 'built', 
-        'implemented', 'improved', 'increased', 'reduced', 'optimized', 'launched',
-        'coordinated', 'collaborated', 'established', 'analyzed', 'conducted',
-        'spearheaded', 'initiated', 'streamlined', 'enhanced', 'delivered'];
-      const lowerTrimmed = trimmed.toLowerCase();
-      if (actionWords.some(w => lowerTrimmed.startsWith(w) || lowerTrimmed.includes(' ' + w + ' '))) {
-        bullets.push(trimmed.slice(0, 500));
-      }
-    }
-  }
-  
-  if (bullets.length > 0) {
-    experience.push({
-      title: candidateTitle || 'Professional Experience',
-      company: 'Various',
-      bullets: bullets.slice(0, 15),
-    });
-  }
-  
-  return { skills, experience, candidateName, candidateTitle };
+  return [];
 }
