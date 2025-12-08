@@ -1,8 +1,7 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, TableCell, TableRow, Table, WidthType } from 'docx';
+import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, TableCell, TableRow, Table, WidthType, convertInchesToTwip, Header, Footer } from 'docx';
 import { saveAs } from 'file-saver';
 
-export type TemplateType = 'modern' | 'classic' | 'minimal' | 'executive';
+export type TemplateType = 'creative' | 'professional' | 'sidebar' | 'bold' | 'compact';
 
 export interface ResumeModifications {
   originalSkills: string[];
@@ -15,9 +14,16 @@ export interface ResumeModifications {
 export interface ResumeData {
   name: string;
   title: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  website?: string;
+  summary?: string;
   skills: string[];
+  tools?: string[];
   experience: { text: string; isModified: boolean }[];
-  originalExperience?: { title: string; company: string; bullets: string[] }[];
+  originalExperience?: { title: string; company: string; date?: string; bullets: string[] }[];
+  education?: { degree: string; school: string; date?: string }[];
 }
 
 // Store the original file for later modification
@@ -32,8 +38,318 @@ export const storeOriginalFile = (file: File, text: string) => {
 export const getStoredFile = () => storedOriginalFile;
 export const getStoredText = () => storedOriginalText;
 
-// Generate Modern Template DOCX
-const generateModernDocx = async (
+// Template 1: Creative - Two column with left content and right sidebar
+const generateCreativeDocx = async (
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): Promise<Blob> => {
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
+  // Create left column content
+  const leftContent: Paragraph[] = [];
+  
+  // Name
+  leftContent.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.name,
+          bold: true,
+          size: 56,
+          color: '1a1a1a',
+          font: 'Arial',
+        }),
+      ],
+      spacing: { after: 80 },
+    })
+  );
+
+  // Title
+  leftContent.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: resumeData.title,
+          size: 24,
+          color: '666666',
+          font: 'Arial',
+        }),
+      ],
+      spacing: { after: 300 },
+    })
+  );
+
+  // Summary
+  if (resumeData.summary) {
+    leftContent.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: resumeData.summary,
+            italics: true,
+            size: 22,
+            color: '444444',
+            font: 'Arial',
+          }),
+        ],
+        spacing: { after: 400 },
+      })
+    );
+  }
+
+  // Work Experience
+  leftContent.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'Work Experience',
+          bold: true,
+          size: 28,
+          color: '1a1a1a',
+          font: 'Arial',
+        }),
+      ],
+      spacing: { before: 200, after: 200 },
+    })
+  );
+
+  if (resumeData.originalExperience) {
+    for (const exp of resumeData.originalExperience) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.title} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: `@ ${exp.company}`, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+          ],
+          spacing: { before: 150, after: 50 },
+        })
+      );
+      
+      if (exp.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' }),
+            ],
+            spacing: { after: 100 },
+          })
+        );
+      }
+
+      for (const bullet of exp.bullets) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 80 },
+          })
+        );
+      }
+    }
+  }
+
+  // Education
+  if (resumeData.education && resumeData.education.length > 0) {
+    leftContent.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Education',
+            bold: true,
+            size: 28,
+            color: '1a1a1a',
+            font: 'Arial',
+          }),
+        ],
+        spacing: { before: 300, after: 200 },
+      })
+    );
+
+    for (const edu of resumeData.education) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${edu.degree} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: `@ ${edu.school}`, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (edu.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: edu.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' }),
+            ],
+            spacing: { after: 150 },
+          })
+        );
+      }
+    }
+  }
+
+  // Right sidebar content
+  const rightContent: Paragraph[] = [];
+
+  // Contact section
+  rightContent.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'Contact',
+          bold: true,
+          size: 24,
+          color: '1a1a1a',
+          font: 'Arial',
+        }),
+      ],
+      spacing: { after: 150 },
+    })
+  );
+
+  if (resumeData.website) {
+    rightContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: resumeData.website, size: 20, color: '1a1a1a', font: 'Arial' })],
+        spacing: { after: 80 },
+      })
+    );
+  }
+  if (resumeData.email) {
+    rightContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: resumeData.email, size: 20, color: '1a1a1a', font: 'Arial' })],
+        spacing: { after: 80 },
+      })
+    );
+  }
+  if (resumeData.phone) {
+    rightContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: resumeData.phone, size: 20, color: '1a1a1a', font: 'Arial' })],
+        spacing: { after: 200 },
+      })
+    );
+  }
+
+  // Skills section
+  rightContent.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'Skills',
+          bold: true,
+          size: 24,
+          color: '1a1a1a',
+          font: 'Arial',
+        }),
+      ],
+      spacing: { before: 150, after: 150 },
+    })
+  );
+
+  for (const skill of allSkills) {
+    const isNew = newSkills.includes(skill);
+    rightContent.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+          new TextRun({ text: skill + (isNew ? ' ✓' : ''), size: 20, color: isNew ? '22C55E' : '444444', font: 'Arial', bold: isNew }),
+        ],
+        spacing: { after: 60 },
+      })
+    );
+  }
+
+  // Tools section
+  if (resumeData.tools && resumeData.tools.length > 0) {
+    rightContent.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Tools',
+            bold: true,
+            size: 24,
+            color: '1a1a1a',
+            font: 'Arial',
+          }),
+        ],
+        spacing: { before: 200, after: 150 },
+      })
+    );
+
+    for (const tool of resumeData.tools) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: tool, size: 20, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { after: 60 },
+        })
+      );
+    }
+  }
+
+  // Create table with two columns
+  const table = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: leftContent,
+            width: { size: 65, type: WidthType.PERCENTAGE },
+            borders: {
+              top: { style: BorderStyle.NONE },
+              bottom: { style: BorderStyle.NONE },
+              left: { style: BorderStyle.NONE },
+              right: { style: BorderStyle.NONE },
+            },
+          }),
+          new TableCell({
+            children: rightContent,
+            width: { size: 35, type: WidthType.PERCENTAGE },
+            shading: { fill: 'F5F5F0' },
+            borders: {
+              top: { style: BorderStyle.NONE },
+              bottom: { style: BorderStyle.NONE },
+              left: { style: BorderStyle.NONE },
+              right: { style: BorderStyle.NONE },
+            },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  });
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: convertInchesToTwip(0.5),
+            bottom: convertInchesToTwip(0.5),
+            left: convertInchesToTwip(0.5),
+            right: convertInchesToTwip(0.5),
+          },
+        },
+      },
+      children: [table],
+    }],
+  });
+
+  return await Packer.toBlob(doc);
+};
+
+// Template 2: Professional - Header with contact right, two column body
+const generateProfessionalDocx = async (
   resumeData: ResumeData,
   modifications: ResumeModifications,
 ): Promise<Blob> => {
@@ -44,208 +360,214 @@ const generateModernDocx = async (
 
   const children: Paragraph[] = [];
 
-  // Tailored for note
-  if (modifications.jobTitle && modifications.company) {
-    children.push(
-      new Paragraph({
+  // Header table with name/title left, contact right
+  const headerTable = new Table({
+    rows: [
+      new TableRow({
         children: [
-          new TextRun({
-            text: `Tailored for: ${modifications.jobTitle} at ${modifications.company}`,
-            italics: true,
-            size: 18,
-            color: '666666',
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `${resumeData.name},`, bold: true, size: 52, color: '1a1a1a', font: 'Arial' }),
+                ],
+                spacing: { after: 50 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: resumeData.title, bold: true, size: 36, color: '1a1a1a', font: 'Arial' }),
+                ],
+              }),
+            ],
+            width: { size: 60, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: resumeData.website || '', size: 20, color: '1a1a1a', font: 'Arial' })],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 50 },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: resumeData.email || '', size: 20, color: '1a1a1a', font: 'Arial' })],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 50 },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: resumeData.phone || '', size: 20, color: '1a1a1a', font: 'Arial' })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            width: { size: 40, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
           }),
         ],
-        alignment: AlignmentType.RIGHT,
-        spacing: { after: 200 },
-      })
-    );
-  }
-
-  // Name with left border effect (using indent)
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: resumeData.name,
-          bold: true,
-          size: 48,
-          color: '1a1a1a',
-        }),
-      ],
-      spacing: { after: 50 },
-      border: {
-        left: { style: BorderStyle.THICK, size: 24, color: '3B82F6' },
-      },
-      indent: { left: 200 },
-    })
-  );
-
-  // Title
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: resumeData.title,
-          bold: true,
-          size: 24,
-          color: '3B82F6',
-        }),
-      ],
-      spacing: { after: 100 },
-      indent: { left: 200 },
-    })
-  );
-
-  // Contact
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'email@example.com • (555) 123-4567 • Location',
-          size: 18,
-          color: '666666',
-        }),
-      ],
-      spacing: { after: 400 },
-      indent: { left: 200 },
-    })
-  );
-
-  // Skills Section
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'SKILLS',
-          bold: true,
-          size: 24,
-          color: '1a1a1a',
-        }),
-      ],
-      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '3B82F6' } },
-      spacing: { before: 200, after: 150 },
-    })
-  );
-
-  // Skills as comma-separated with new skills highlighted
-  const skillRuns: TextRun[] = [];
-  allSkills.forEach((skill, i) => {
-    const isNew = newSkills.includes(skill);
-    skillRuns.push(
-      new TextRun({
-        text: skill + (isNew ? ' ✓' : ''),
-        size: 20,
-        color: isNew ? '22C55E' : '3B82F6',
-        bold: isNew,
-      })
-    );
-    if (i < allSkills.length - 1) {
-      skillRuns.push(new TextRun({ text: ' • ', size: 20, color: '999999' }));
-    }
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
   });
-  children.push(new Paragraph({ children: skillRuns, spacing: { after: 300 } }));
 
-  // Experience Section
-  children.push(
+  // Left column (experience, education)
+  const leftContent: Paragraph[] = [];
+
+  leftContent.push(
     new Paragraph({
-      children: [
-        new TextRun({
-          text: 'PROFESSIONAL EXPERIENCE',
-          bold: true,
-          size: 24,
-          color: '1a1a1a',
-        }),
-      ],
-      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '3B82F6' } },
-      spacing: { before: 200, after: 150 },
+      children: [new TextRun({ text: 'Work Experience', bold: true, size: 26, color: '1a1a1a', font: 'Arial' })],
+      spacing: { before: 200, after: 200 },
     })
   );
 
-  // Original experience entries
-  if (resumeData.originalExperience && resumeData.originalExperience.length > 0) {
+  if (resumeData.originalExperience) {
     for (const exp of resumeData.originalExperience) {
-      // Title and company
-      children.push(
+      leftContent.push(
         new Paragraph({
           children: [
-            new TextRun({ text: exp.title, bold: true, size: 22, color: '1a1a1a' }),
-            new TextRun({ text: ' — ', size: 22, color: '999999' }),
-            new TextRun({ text: exp.company, size: 22, color: '666666' }),
+            new TextRun({ text: `${exp.company} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: exp.title, size: 24, color: '444444', font: 'Arial' }),
           ],
-          spacing: { before: 150, after: 100 },
+          spacing: { before: 150, after: 50 },
         })
       );
-
-      // Bullets
+      if (exp.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
       for (const bullet of exp.bullets) {
-        children.push(
+        leftContent.push(
           new Paragraph({
             children: [
-              new TextRun({ text: '• ', size: 20, color: '3B82F6' }),
-              new TextRun({ text: bullet, size: 20, color: '444444' }),
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
             ],
-            indent: { left: 300 },
-            spacing: { after: 50 },
+            indent: { left: 200 },
+            spacing: { after: 60 },
           })
         );
       }
     }
   }
 
-  // AI-enhanced additions
-  const enhancedItems = resumeData.experience.filter(e => e.isModified);
-  if (enhancedItems.length > 0) {
-    children.push(
+  // Education
+  if (resumeData.education && resumeData.education.length > 0) {
+    leftContent.push(
       new Paragraph({
-        children: [
-          new TextRun({
-            text: '✨ Verified Skill Additions',
-            bold: true,
-            size: 20,
-            color: '22C55E',
-          }),
-        ],
-        spacing: { before: 200, after: 100 },
+        children: [new TextRun({ text: 'Education', bold: true, size: 26, color: '1a1a1a', font: 'Arial' })],
+        spacing: { before: 300, after: 200 },
       })
     );
 
-    for (const item of enhancedItems) {
-      children.push(
+    for (const edu of resumeData.education) {
+      leftContent.push(
         new Paragraph({
           children: [
-            new TextRun({ text: '• ', size: 20, color: '22C55E' }),
-            new TextRun({ text: item.text, size: 20, color: '22C55E' }),
+            new TextRun({ text: `${edu.school} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: edu.degree, size: 24, color: '444444', font: 'Arial' }),
           ],
-          indent: { left: 300 },
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (edu.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: edu.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+    }
+  }
+
+  // Right column (skills, tools)
+  const rightContent: Paragraph[] = [];
+
+  rightContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'Skills', bold: true, size: 26, color: '1a1a1a', font: 'Arial' })],
+      spacing: { before: 200, after: 150 },
+    })
+  );
+
+  for (const skill of allSkills) {
+    const isNew = newSkills.includes(skill);
+    rightContent.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+          new TextRun({ text: skill + (isNew ? ' ✓' : ''), size: 20, color: isNew ? '22C55E' : '444444', font: 'Arial', bold: isNew }),
+        ],
+        spacing: { after: 50 },
+      })
+    );
+  }
+
+  if (resumeData.tools && resumeData.tools.length > 0) {
+    rightContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'Tools', bold: true, size: 26, color: '1a1a1a', font: 'Arial' })],
+        spacing: { before: 200, after: 150 },
+      })
+    );
+
+    for (const tool of resumeData.tools) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: tool, size: 20, color: '444444', font: 'Arial' }),
+          ],
           spacing: { after: 50 },
         })
       );
     }
   }
 
-  // Footer
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `Generated with ResumeAI • ${new Date().toLocaleDateString()}`,
-          italics: true,
-          size: 16,
-          color: '999999',
-        }),
-      ],
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 400 },
-    })
-  );
+  // Body table
+  const bodyTable = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: leftContent,
+            width: { size: 65, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+          new TableCell({
+            children: rightContent,
+            width: { size: 35, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  });
 
-  const doc = new Document({ sections: [{ properties: {}, children }] });
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: convertInchesToTwip(0.6),
+            bottom: convertInchesToTwip(0.6),
+            left: convertInchesToTwip(0.6),
+            right: convertInchesToTwip(0.6),
+          },
+        },
+      },
+      children: [headerTable, bodyTable],
+    }],
+  });
+
   return await Packer.toBlob(doc);
 };
 
-// Generate Classic Template DOCX
-const generateClassicDocx = async (
+// Template 3: Sidebar - Left sidebar with contact/skills, right main content
+const generateSidebarDocx = async (
   resumeData: ResumeData,
   modifications: ResumeModifications,
 ): Promise<Blob> => {
@@ -254,400 +576,633 @@ const generateClassicDocx = async (
   );
   const allSkills = [...modifications.originalSkills, ...newSkills];
 
-  const children: Paragraph[] = [];
+  // Left sidebar content
+  const leftContent: Paragraph[] = [];
 
-  // Tailored for note
-  if (modifications.jobTitle && modifications.company) {
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Tailored for: ${modifications.jobTitle} at ${modifications.company}`,
-            italics: true,
-            size: 18,
-            color: '666666',
-          }),
-        ],
-        alignment: AlignmentType.RIGHT,
-        spacing: { after: 200 },
-      })
-    );
-  }
-
-  // Name centered
-  children.push(
+  // Name and title at top
+  leftContent.push(
     new Paragraph({
       children: [
-        new TextRun({
-          text: resumeData.name.toUpperCase(),
-          bold: true,
-          size: 48,
-          color: '000000',
-        }),
+        new TextRun({ text: `${resumeData.name},`, bold: true, size: 48, color: '1a1a1a', font: 'Arial' }),
       ],
-      alignment: AlignmentType.CENTER,
       spacing: { after: 50 },
     })
   );
-
-  // Title
-  children.push(
+  leftContent.push(
     new Paragraph({
       children: [
-        new TextRun({
-          text: resumeData.title,
-          size: 24,
-          color: '444444',
-        }),
+        new TextRun({ text: resumeData.title, bold: true, size: 32, color: '1a1a1a', font: 'Arial' }),
       ],
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 100 },
+      spacing: { after: 300 },
     })
   );
 
   // Contact
-  children.push(
+  leftContent.push(
     new Paragraph({
-      children: [
-        new TextRun({
-          text: 'email@example.com | (555) 123-4567 | Location',
-          size: 18,
-          color: '666666',
-        }),
-      ],
-      alignment: AlignmentType.CENTER,
-      border: { bottom: { style: BorderStyle.DOUBLE, size: 6, color: '000000' } },
-      spacing: { after: 300 },
+      children: [new TextRun({ text: 'Contact', bold: true, size: 24, color: '1a1a1a', font: 'Arial' })],
+      spacing: { after: 150 },
     })
   );
-
-  // Skills Section
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'PROFESSIONAL SKILLS',
-          bold: true,
-          size: 22,
-          color: '000000',
-        }),
-      ],
-      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' } },
-      spacing: { before: 200, after: 100 },
-    })
-  );
-
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: allSkills.join(' • '),
-          size: 20,
-          color: '444444',
-        }),
-      ],
-      spacing: { after: 300 },
-    })
-  );
-
-  // Experience Section
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'PROFESSIONAL EXPERIENCE',
-          bold: true,
-          size: 22,
-          color: '000000',
-        }),
-      ],
-      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000' } },
-      spacing: { before: 200, after: 100 },
-    })
-  );
-
-  if (resumeData.originalExperience && resumeData.originalExperience.length > 0) {
-    for (const exp of resumeData.originalExperience) {
-      children.push(
-        new Paragraph({
-          children: [
-            new TextRun({ text: exp.title, bold: true, size: 22, color: '000000' }),
-          ],
-        })
-      );
-      children.push(
-        new Paragraph({
-          children: [
-            new TextRun({ text: exp.company, italics: true, size: 20, color: '666666' }),
-          ],
-          spacing: { after: 100 },
-        })
-      );
-
-      for (const bullet of exp.bullets) {
-        children.push(
-          new Paragraph({
-            children: [
-              new TextRun({ text: '• ' + bullet, size: 20, color: '444444' }),
-            ],
-            indent: { left: 300 },
-            spacing: { after: 50 },
-          })
-        );
-      }
-    }
+  if (resumeData.website) {
+    leftContent.push(new Paragraph({ children: [new TextRun({ text: resumeData.website, size: 20, color: '444444', font: 'Arial' })], spacing: { after: 50 } }));
+  }
+  if (resumeData.email) {
+    leftContent.push(new Paragraph({ children: [new TextRun({ text: resumeData.email, size: 20, color: '444444', font: 'Arial' })], spacing: { after: 50 } }));
+  }
+  if (resumeData.phone) {
+    leftContent.push(new Paragraph({ children: [new TextRun({ text: resumeData.phone, size: 20, color: '444444', font: 'Arial' })], spacing: { after: 200 } }));
   }
 
-  const doc = new Document({ sections: [{ properties: {}, children }] });
-  return await Packer.toBlob(doc);
-};
-
-// Generate Minimal Template DOCX
-const generateMinimalDocx = async (
-  resumeData: ResumeData,
-  modifications: ResumeModifications,
-): Promise<Blob> => {
-  const newSkills = modifications.confirmedSkills.filter(
-    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
-  );
-  const allSkills = [...modifications.originalSkills, ...newSkills];
-
-  const children: Paragraph[] = [];
-
-  // Tailored for note
-  if (modifications.jobTitle && modifications.company) {
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `For: ${modifications.jobTitle}, ${modifications.company}`,
-            italics: true,
-            size: 18,
-            color: '888888',
-          }),
-        ],
-        spacing: { after: 200 },
-      })
-    );
-  }
-
-  // Name
-  children.push(
+  // Skills
+  leftContent.push(
     new Paragraph({
-      children: [
-        new TextRun({
-          text: resumeData.name,
-          bold: true,
-          size: 44,
-          color: '000000',
-        }),
-      ],
-      spacing: { after: 50 },
+      children: [new TextRun({ text: 'Skills', bold: true, size: 24, color: '1a1a1a', font: 'Arial' })],
+      spacing: { before: 100, after: 150 },
     })
   );
-
-  // Title with skills inline
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `${resumeData.title} • ${allSkills.slice(0, 4).join(', ')}`,
-          size: 20,
-          color: '666666',
-        }),
-      ],
-      spacing: { after: 300 },
-    })
-  );
-
-  // Experience
-  if (resumeData.originalExperience && resumeData.originalExperience.length > 0) {
-    for (const exp of resumeData.originalExperience) {
-      children.push(
-        new Paragraph({
-          children: [
-            new TextRun({ text: `${exp.title} — ${exp.company}`, bold: true, size: 22, color: '000000' }),
-          ],
-          spacing: { before: 150, after: 100 },
-        })
-      );
-
-      for (const bullet of exp.bullets.slice(0, 3)) {
-        children.push(
-          new Paragraph({
-            children: [
-              new TextRun({ text: '• ' + bullet, size: 20, color: '444444' }),
-            ],
-            indent: { left: 300 },
-            spacing: { after: 50 },
-          })
-        );
-      }
-    }
-  }
-
-  // New skills note
-  if (newSkills.length > 0) {
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Additional verified skills: ${newSkills.join(', ')}`,
-            size: 18,
-            color: '22C55E',
-          }),
-        ],
-        spacing: { before: 200 },
-      })
-    );
-  }
-
-  const doc = new Document({ sections: [{ properties: {}, children }] });
-  return await Packer.toBlob(doc);
-};
-
-// Generate Executive Template DOCX
-const generateExecutiveDocx = async (
-  resumeData: ResumeData,
-  modifications: ResumeModifications,
-): Promise<Blob> => {
-  const newSkills = modifications.confirmedSkills.filter(
-    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
-  );
-  const allSkills = [...modifications.originalSkills, ...newSkills];
-
-  const children: Paragraph[] = [];
-
-  // Header with background effect
-  if (modifications.jobTitle && modifications.company) {
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Prepared for: ${modifications.jobTitle} at ${modifications.company}`,
-            italics: true,
-            size: 18,
-            color: '3B82F6',
-          }),
-        ],
-        spacing: { after: 100 },
-      })
-    );
-  }
-
-  // Name
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: resumeData.name,
-          bold: true,
-          size: 52,
-          color: '1a1a1a',
-        }),
-      ],
-      shading: { fill: 'EFF6FF' },
-      spacing: { after: 50 },
-    })
-  );
-
-  // Title
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: resumeData.title,
-          bold: true,
-          size: 28,
-          color: '3B82F6',
-        }),
-      ],
-      shading: { fill: 'EFF6FF' },
-      spacing: { after: 100 },
-    })
-  );
-
-  // Contact
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'email@example.com | (555) 123-4567',
-          size: 18,
-          color: '666666',
-        }),
-      ],
-      shading: { fill: 'EFF6FF' },
-      border: { bottom: { style: BorderStyle.THICK, size: 12, color: '3B82F6' } },
-      spacing: { after: 300 },
-    })
-  );
-
-  // Core Competencies
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'CORE COMPETENCIES',
-          bold: true,
-          size: 24,
-          color: '3B82F6',
-        }),
-      ],
-      spacing: { before: 200, after: 150 },
-    })
-  );
-
-  for (const skill of allSkills.slice(0, 8)) {
+  for (const skill of allSkills) {
     const isNew = newSkills.includes(skill);
-    children.push(
+    leftContent.push(
       new Paragraph({
         children: [
-          new TextRun({
-            text: '✓ ' + skill,
-            size: 20,
-            color: isNew ? '22C55E' : '444444',
-            bold: isNew,
-          }),
+          new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+          new TextRun({ text: skill + (isNew ? ' ✓' : ''), size: 20, color: isNew ? '22C55E' : '444444', font: 'Arial', bold: isNew }),
         ],
-        indent: { left: 200 },
         spacing: { after: 50 },
       })
     );
   }
 
-  // Key Achievements
-  children.push(
+  // Tools
+  if (resumeData.tools && resumeData.tools.length > 0) {
+    leftContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'Tools', bold: true, size: 24, color: '1a1a1a', font: 'Arial' })],
+        spacing: { before: 200, after: 150 },
+      })
+    );
+    for (const tool of resumeData.tools) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: tool, size: 20, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { after: 50 },
+        })
+      );
+    }
+  }
+
+  // Right main content
+  const rightContent: Paragraph[] = [];
+
+  // Work Experience
+  rightContent.push(
     new Paragraph({
-      children: [
-        new TextRun({
-          text: 'KEY ACHIEVEMENTS',
-          bold: true,
-          size: 24,
-          color: '3B82F6',
-        }),
-      ],
+      children: [new TextRun({ text: 'Work Experience', bold: true, size: 26, color: '1a1a1a', font: 'Arial' })],
+      spacing: { after: 200 },
+    })
+  );
+
+  if (resumeData.originalExperience) {
+    for (const exp of resumeData.originalExperience) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.company} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: exp.title, size: 24, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (exp.date) {
+        rightContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+      for (const bullet of exp.bullets) {
+        rightContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 60 },
+          })
+        );
+      }
+    }
+  }
+
+  // Education
+  if (resumeData.education && resumeData.education.length > 0) {
+    rightContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'Education', bold: true, size: 26, color: '1a1a1a', font: 'Arial' })],
+        spacing: { before: 300, after: 200 },
+      })
+    );
+
+    for (const edu of resumeData.education) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${edu.school} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: edu.degree, size: 24, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (edu.date) {
+        rightContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: edu.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+    }
+  }
+
+  const table = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: leftContent,
+            width: { size: 35, type: WidthType.PERCENTAGE },
+            shading: { fill: 'F5F5F0' },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+          new TableCell({
+            children: rightContent,
+            width: { size: 65, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  });
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: convertInchesToTwip(0.5),
+            bottom: convertInchesToTwip(0.5),
+            left: convertInchesToTwip(0.5),
+            right: convertInchesToTwip(0.5),
+          },
+        },
+      },
+      children: [table],
+    }],
+  });
+
+  return await Packer.toBlob(doc);
+};
+
+// Template 4: Bold - Similar to professional with summary and underlined headers
+const generateBoldDocx = async (
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): Promise<Blob> => {
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
+  const children: Paragraph[] = [];
+
+  // Header with name/title left, contact right
+  const headerTable = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `${resumeData.name},`, bold: true, size: 52, color: '1a1a1a', font: 'Arial' }),
+                ],
+                spacing: { after: 50 },
+              }),
+              new Paragraph({
+                children: [
+                  new TextRun({ text: resumeData.title, bold: true, size: 36, color: '1a1a1a', font: 'Arial' }),
+                ],
+              }),
+            ],
+            width: { size: 60, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+          new TableCell({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: resumeData.website || '', size: 20, color: '1a1a1a', font: 'Arial' })],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 50 },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: resumeData.email || '', size: 20, color: '1a1a1a', font: 'Arial' })],
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 50 },
+              }),
+              new Paragraph({
+                children: [new TextRun({ text: resumeData.phone || '', size: 20, color: '1a1a1a', font: 'Arial' })],
+                alignment: AlignmentType.RIGHT,
+              }),
+            ],
+            width: { size: 40, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  });
+
+  // Left column with summary and experience
+  const leftContent: Paragraph[] = [];
+
+  // Summary
+  if (resumeData.summary) {
+    leftContent.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: resumeData.summary, bold: true, size: 22, color: '1a1a1a', font: 'Arial' }),
+        ],
+        spacing: { before: 200, after: 300 },
+      })
+    );
+  }
+
+  // Work Experience with underline
+  leftContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'WORK EXPERIENCE', bold: true, size: 24, color: '1a1a1a', font: 'Arial' })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+      spacing: { after: 200 },
+    })
+  );
+
+  if (resumeData.originalExperience) {
+    for (const exp of resumeData.originalExperience) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.company} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: exp.title, size: 24, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { before: 150, after: 50 },
+        })
+      );
+      if (exp.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+      for (const bullet of exp.bullets) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 60 },
+          })
+        );
+      }
+    }
+  }
+
+  // Education
+  if (resumeData.education && resumeData.education.length > 0) {
+    leftContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'EDUCATION', bold: true, size: 24, color: '1a1a1a', font: 'Arial' })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+        spacing: { before: 300, after: 200 },
+      })
+    );
+
+    for (const edu of resumeData.education) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${edu.school} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: edu.degree, size: 24, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (edu.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: edu.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+    }
+  }
+
+  // Right column
+  const rightContent: Paragraph[] = [];
+
+  rightContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'SKILLS', bold: true, size: 24, color: '1a1a1a', font: 'Arial' })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
       spacing: { before: 200, after: 150 },
     })
   );
 
-  for (const exp of resumeData.experience.slice(0, 5)) {
-    children.push(
+  for (const skill of allSkills) {
+    const isNew = newSkills.includes(skill);
+    rightContent.push(
       new Paragraph({
         children: [
-          new TextRun({
-            text: '• ' + exp.text,
-            size: 20,
-            color: exp.isModified ? '22C55E' : '444444',
-          }),
+          new TextRun({ text: skill + (isNew ? ' ✓' : ''), size: 20, color: isNew ? '22C55E' : '444444', font: 'Arial', bold: isNew }),
         ],
-        indent: { left: 200 },
         spacing: { after: 50 },
       })
     );
   }
 
-  const doc = new Document({ sections: [{ properties: {}, children }] });
+  rightContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'TOOLS', bold: true, size: 24, color: '1a1a1a', font: 'Arial' })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+      spacing: { before: 200, after: 150 },
+    })
+  );
+
+  if (resumeData.tools) {
+    for (const tool of resumeData.tools) {
+      rightContent.push(
+        new Paragraph({
+          children: [new TextRun({ text: tool, size: 20, color: '444444', font: 'Arial' })],
+          spacing: { after: 50 },
+        })
+      );
+    }
+  }
+
+  const bodyTable = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: leftContent,
+            width: { size: 65, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+          new TableCell({
+            children: rightContent,
+            width: { size: 35, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  });
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: convertInchesToTwip(0.6),
+            bottom: convertInchesToTwip(0.6),
+            left: convertInchesToTwip(0.6),
+            right: convertInchesToTwip(0.6),
+          },
+        },
+      },
+      children: [headerTable, bodyTable],
+    }],
+  });
+
+  return await Packer.toBlob(doc);
+};
+
+// Template 5: Compact - Education first, two column with underlined headers
+const generateCompactDocx = async (
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): Promise<Blob> => {
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
+  // Left column
+  const leftContent: Paragraph[] = [];
+
+  // Name and title
+  leftContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: resumeData.name, bold: true, size: 52, color: '1a1a1a', font: 'Arial' })],
+      spacing: { after: 50 },
+    })
+  );
+  leftContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: resumeData.title, size: 24, color: '666666', font: 'Arial' })],
+      spacing: { after: 300 },
+    })
+  );
+
+  // Education first
+  if (resumeData.education && resumeData.education.length > 0) {
+    leftContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'EDUCATION', bold: true, size: 22, color: '1a1a1a', font: 'Arial' })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+        spacing: { after: 150 },
+      })
+    );
+
+    for (const edu of resumeData.education) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${edu.degree} `, bold: true, size: 22, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: `@ ${edu.school}`, bold: true, size: 22, color: '1a1a1a', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (edu.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: edu.date.toUpperCase(), size: 16, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+    }
+  }
+
+  // Contact
+  leftContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'CONTACT', bold: true, size: 22, color: '1a1a1a', font: 'Arial' })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+      spacing: { before: 200, after: 150 },
+    })
+  );
+  if (resumeData.website) {
+    leftContent.push(new Paragraph({ children: [new TextRun({ text: `Website: ${resumeData.website}`, size: 20, color: '444444', font: 'Arial' })], spacing: { after: 50 } }));
+  }
+  if (resumeData.email) {
+    leftContent.push(new Paragraph({ children: [new TextRun({ text: `Email: ${resumeData.email}`, size: 20, color: '444444', font: 'Arial' })], spacing: { after: 50 } }));
+  }
+  if (resumeData.phone) {
+    leftContent.push(new Paragraph({ children: [new TextRun({ text: `Phone: ${resumeData.phone}`, size: 20, color: '444444', font: 'Arial' })], spacing: { after: 150 } }));
+  }
+
+  // Right column
+  const rightContent: Paragraph[] = [];
+
+  // Work Experience
+  rightContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'WORK EXPERIENCE', bold: true, size: 22, color: '1a1a1a', font: 'Arial' })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+      spacing: { after: 150 },
+    })
+  );
+
+  if (resumeData.originalExperience) {
+    for (const exp of resumeData.originalExperience) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.title} `, bold: true, size: 22, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: `@ ${exp.company}`, bold: true, size: 22, color: '1a1a1a', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (exp.date) {
+        rightContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 16, color: '888888', font: 'Arial' })],
+            spacing: { after: 80 },
+          })
+        );
+      }
+      for (const bullet of exp.bullets) {
+        rightContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 50 },
+          })
+        );
+      }
+    }
+  }
+
+  // Skills
+  rightContent.push(
+    new Paragraph({
+      children: [new TextRun({ text: 'SKILLS', bold: true, size: 22, color: '1a1a1a', font: 'Arial' })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+      spacing: { before: 200, after: 150 },
+    })
+  );
+
+  for (const skill of allSkills) {
+    const isNew = newSkills.includes(skill);
+    rightContent.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+          new TextRun({ text: skill + (isNew ? ' ✓' : ''), size: 20, color: isNew ? '22C55E' : '444444', font: 'Arial', bold: isNew }),
+        ],
+        spacing: { after: 40 },
+      })
+    );
+  }
+
+  // Tools
+  if (resumeData.tools && resumeData.tools.length > 0) {
+    rightContent.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'TOOLS', bold: true, size: 22, color: '1a1a1a', font: 'Arial' })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: '1a1a1a' } },
+        spacing: { before: 200, after: 150 },
+      })
+    );
+
+    for (const tool of resumeData.tools) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: tool, size: 20, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { after: 40 },
+        })
+      );
+    }
+  }
+
+  const table = new Table({
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: leftContent,
+            width: { size: 40, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+          new TableCell({
+            children: rightContent,
+            width: { size: 60, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          }),
+        ],
+      }),
+    ],
+    width: { size: 100, type: WidthType.PERCENTAGE },
+  });
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: convertInchesToTwip(0.6),
+            bottom: convertInchesToTwip(0.6),
+            left: convertInchesToTwip(0.6),
+            right: convertInchesToTwip(0.6),
+          },
+        },
+      },
+      children: [table],
+    }],
+  });
+
   return await Packer.toBlob(doc);
 };
 
@@ -660,20 +1215,23 @@ export const downloadTemplateResume = async (
   let blob: Blob;
   
   switch (template) {
-    case 'modern':
-      blob = await generateModernDocx(resumeData, modifications);
+    case 'creative':
+      blob = await generateCreativeDocx(resumeData, modifications);
       break;
-    case 'classic':
-      blob = await generateClassicDocx(resumeData, modifications);
+    case 'professional':
+      blob = await generateProfessionalDocx(resumeData, modifications);
       break;
-    case 'minimal':
-      blob = await generateMinimalDocx(resumeData, modifications);
+    case 'sidebar':
+      blob = await generateSidebarDocx(resumeData, modifications);
       break;
-    case 'executive':
-      blob = await generateExecutiveDocx(resumeData, modifications);
+    case 'bold':
+      blob = await generateBoldDocx(resumeData, modifications);
+      break;
+    case 'compact':
+      blob = await generateCompactDocx(resumeData, modifications);
       break;
     default:
-      blob = await generateModernDocx(resumeData, modifications);
+      blob = await generateCreativeDocx(resumeData, modifications);
   }
   
   const filename = `${resumeData.name.replace(/[^a-zA-Z0-9]/g, '_')}_${modifications.company?.replace(/[^a-zA-Z0-9]/g, '_') || 'Tailored'}_${template}_Resume.docx`;
@@ -696,5 +1254,5 @@ export const downloadModifiedResume = async (
     })),
   };
   
-  await downloadTemplateResume('modern', resumeData, modifications);
+  await downloadTemplateResume('creative', resumeData, modifications);
 };
