@@ -230,14 +230,24 @@ serve(async (req) => {
     );
 
     // Calculate new score (with confirmed skills and tailored experience)
-    let tailoredExp = resume.experience;
+    // Merge tailored experience with original experience context
+    let enhancedExperience = [...resume.experience];
     if (tailoredExperience && tailoredExperience.length > 0) {
-      // Create experience entries from tailored bullets
-      tailoredExp = [{
-        title: resume.experience[0]?.title || 'Professional Experience',
-        company: resume.experience[0]?.company || 'Company',
-        bullets: tailoredExperience.map(e => e.text),
-      }];
+      // Add tailored bullets as additional experience content while keeping original
+      const tailoredBullets = tailoredExperience.map(e => e.text);
+      if (enhancedExperience.length > 0) {
+        // Add tailored bullets to the first experience entry
+        enhancedExperience[0] = {
+          ...enhancedExperience[0],
+          bullets: [...new Set([...enhancedExperience[0].bullets, ...tailoredBullets])],
+        };
+      } else {
+        enhancedExperience = [{
+          title: 'Professional Experience',
+          company: 'Company',
+          bullets: tailoredBullets,
+        }];
+      }
     }
 
     const newScore = calculateATSScore(
@@ -246,7 +256,7 @@ serve(async (req) => {
       jobDescription.responsibilities,
       jobDescription.title,
       resume.skills,
-      tailoredExp,
+      enhancedExperience,
       confirmedSkills // Add confirmed skills
     );
 
