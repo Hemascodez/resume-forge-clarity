@@ -73,6 +73,8 @@ serve(async (req) => {
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.
 You must never hallucinate or add anything the user did not explicitly confirm.
 
+IMPORTANT: You HAVE access to the candidate's resume below. DO NOT say you cannot see it. Analyze it and ask relevant questions.
+
 TONE:
 - Fast, clear, friendly, slightly funny — but still serious enough for career use.
 - If the user exaggerates something unrealistic, gently tease them ("Are you sure you built the entire product alone? 👀") and request credible clarification.
@@ -97,11 +99,14 @@ JOB DESCRIPTION:
 - Requirements: ${jobDescription.requirements.join('; ')}
 - Responsibilities: ${jobDescription.responsibilities.join('; ')}
 
-CANDIDATE'S RESUME:
+CANDIDATE'S RESUME (FULL TEXT - READ THIS CAREFULLY):
+${resume.rawText || 'No raw text available'}
+
+CANDIDATE'S PARSED DATA:
 - Listed Skills: ${resume.skills.join(', ')}
 - Experience: ${resume.experience.map(exp => exp.title + ' at ' + exp.company + ': ' + exp.bullets.join('; ')).join(' | ')}
 
-RESPONSE FORMAT (JSON only):
+RESPONSE FORMAT - YOU MUST RESPOND WITH ONLY THIS JSON STRUCTURE:
 {
   "question": "Your short clarifying question (max 18 words)",
   "skillBeingProbed": "The specific skill you're asking about",
@@ -112,6 +117,7 @@ RESPONSE FORMAT (JSON only):
   "summary": "Only when isComplete is true - brief summary of verified skills"
 }
 
+CRITICAL: Respond with ONLY the JSON object above. No text before or after. No markdown code blocks.
 When all gaps are addressed or verified, set isComplete to true and provide summary.`;
 
     const messages = [
