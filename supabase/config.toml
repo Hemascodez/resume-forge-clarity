@@ -2,3 +2,6 @@ project_id = "bcquodikfyphcybgniti"
 
 [functions.interrogate]
 verify_jwt = true
+
+[functions.calculate-ats]
+verify_jwt = false
