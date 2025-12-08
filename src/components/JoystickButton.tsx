@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 interface JoystickButtonProps {
   children: React.ReactNode;
-  variant?: "primary" | "accent" | "neutral";
+  variant?: "primary" | "accent" | "neutral" | "destructive";
   size?: "sm" | "md" | "lg";
   className?: string;
   onClick?: () => void;
@@ -39,9 +39,16 @@ export const JoystickButton: React.FC<JoystickButtonProps> = ({
     },
     neutral: {
       outer: "from-muted to-muted/50",
-      inner: "from-secondary to-secondary/80",
+      inner: "from-card to-secondary/80",
       shadow: "shadow-[inset_0_-4px_8px_hsl(var(--border)),0_8px_16px_hsl(var(--border)/0.3)]",
-      glow: "group-hover:shadow-[inset_0_-4px_8px_hsl(var(--border)),0_12px_24px_hsl(var(--border)/0.4)]"
+      glow: "group-hover:shadow-[inset_0_-4px_8px_hsl(var(--border)),0_12px_24px_hsl(var(--border)/0.4)]",
+      textColor: "text-muted-foreground"
+    },
+    destructive: {
+      outer: "from-destructive/20 to-destructive/5",
+      inner: "from-destructive to-destructive/80",
+      shadow: "shadow-[inset_0_-4px_8px_hsl(var(--destructive)/0.3),0_8px_16px_hsl(var(--destructive)/0.2)]",
+      glow: "group-hover:shadow-[inset_0_-4px_8px_hsl(var(--destructive)/0.4),0_12px_24px_hsl(var(--destructive)/0.3)]"
     }
   };
 
@@ -66,7 +73,8 @@ export const JoystickButton: React.FC<JoystickButtonProps> = ({
       
       {/* Inner button with 3D effect */}
       <div className={cn(
-        "absolute inset-1.5 rounded-full bg-gradient-to-b flex items-center justify-center font-bold text-primary-foreground transition-all duration-200 whitespace-nowrap px-3",
+        "absolute inset-1.5 rounded-full bg-gradient-to-b flex items-center justify-center font-bold transition-all duration-200 whitespace-nowrap px-3",
+        variant === 'neutral' ? 'text-muted-foreground' : 'text-primary-foreground',
         style.inner,
         style.shadow,
         style.glow

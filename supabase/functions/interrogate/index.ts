@@ -366,11 +366,62 @@ CRITICAL:
 
     let parsedResponse;
     try {
-      // Try to extract JSON from the response
-      const jsonMatch = aiResponse.match(/```json\n?([\s\S]*?)\n?```/) || 
-                        aiResponse.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : aiResponse;
-      parsedResponse = JSON.parse(jsonStr);
+      // Try to extract JSON from the response - handle markdown code blocks
+      let jsonStr = aiResponse;
+      
+      // Remove markdown code block wrapper if present
+      if (aiResponse.includes('```json')) {
+        const jsonMatch = aiResponse.match(/```json\n?([\s\S]*?)\n?```/);
+        if (jsonMatch && jsonMatch[1]) {
+          jsonStr = jsonMatch[1].trim();
+        }
+      } else if (aiResponse.includes('```')) {
+        const jsonMatch = aiResponse.match(/```\n?([\s\S]*?)\n?```/);
+        if (jsonMatch && jsonMatch[1]) {
+          jsonStr = jsonMatch[1].trim();
+        }
+      }
+      
+      // If it's still not valid JSON, try to extract just the JSON object
+      if (!jsonStr.startsWith('{')) {
+        const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (objectMatch) {
+          jsonStr = objectMatch[0];
+        }
+      }
+      
+      // Handle potentially truncated JSON by attempting to close it
+      let parseAttempt = jsonStr;
+      let parsed = null;
+      
+      // Try parsing as-is first
+      try {
+        parsed = JSON.parse(parseAttempt);
+      } catch {
+        // If truncated, try to close the JSON properly
+        // Count open braces/brackets and close them
+        const openBraces = (parseAttempt.match(/\{/g) || []).length;
+        const closeBraces = (parseAttempt.match(/\}/g) || []).length;
+        const openBrackets = (parseAttempt.match(/\[/g) || []).length;
+        const closeBrackets = (parseAttempt.match(/\]/g) || []).length;
+        
+        // Add missing closing brackets/braces
+        let fixedJson = parseAttempt;
+        // Remove trailing comma if any
+        fixedJson = fixedJson.replace(/,\s*$/, '');
+        // Close arrays
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          fixedJson += ']';
+        }
+        // Close objects
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          fixedJson += '}';
+        }
+        
+        parsed = JSON.parse(fixedJson);
+      }
+      
+      parsedResponse = parsed;
       
       // Ensure resumeSummary is populated
       if (!parsedResponse.resumeSummary) {
@@ -383,9 +434,20 @@ CRITICAL:
       }
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
+      console.error('Raw response:', aiResponse);
+      
+      // Extract question from raw text if possible
+      let extractedQuestion = aiResponse;
+      if (aiResponse.includes('"question"')) {
+        const questionMatch = aiResponse.match(/"question"\s*:\s*"([^"]+)"/);
+        if (questionMatch && questionMatch[1]) {
+          extractedQuestion = questionMatch[1];
+        }
+      }
+      
       // Create a structured response from the raw text
       parsedResponse = {
-        question: aiResponse,
+        question: extractedQuestion,
         skillBeingProbed: 'general',
         context: '',
         isComplete: false,
