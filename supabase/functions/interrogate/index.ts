@@ -1,29 +1,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface InterrogateRequest {
-  jobDescription: {
-    title: string;
-    company: string;
-    skills: string[];
-    requirements: string[];
-    responsibilities: string[];
-  };
-  resume: {
-    skills: string[];
-    experience: {
-      title: string;
-      company: string;
-      bullets: string[];
-    }[];
-  };
-  conversationHistory?: { role: string; content: string }[];
-  userAnswer?: string;
-}
+// Input validation schema with length limits to prevent abuse
+const RequestSchema = z.object({
+  jobDescription: z.object({
+    title: z.string().max(200, "Job title too long"),
+    company: z.string().max(200, "Company name too long"),
+    skills: z.array(z.string().max(100)).max(50, "Too many skills"),
+    requirements: z.array(z.string().max(500)).max(20, "Too many requirements"),
+    responsibilities: z.array(z.string().max(500)).max(20, "Too many responsibilities"),
+  }),
+  resume: z.object({
+    skills: z.array(z.string().max(100)).max(50, "Too many skills"),
+    experience: z.array(z.object({
+      title: z.string().max(200),
+      company: z.string().max(200),
+      bullets: z.array(z.string().max(500)).max(20),
+    })).max(10, "Too many experience entries"),
+  }),
+  conversationHistory: z.array(z.object({
+    role: z.string().max(20),
+    content: z.string().max(5000),
+  })).max(20, "Conversation history too long").optional().default([]),
+  userAnswer: z.string().max(2000, "Answer too long").optional(),
+});
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -37,7 +42,22 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const { jobDescription, resume, conversationHistory = [], userAnswer } = await req.json() as InterrogateRequest;
+    // Parse and validate input
+    const rawBody = await req.json();
+    const parseResult = RequestSchema.safeParse(rawBody);
+    
+    if (!parseResult.success) {
+      console.error('Validation failed:', parseResult.error.flatten());
+      return new Response(JSON.stringify({ 
+        error: 'Invalid request data', 
+        details: parseResult.error.flatten().fieldErrors 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { jobDescription, resume, conversationHistory, userAnswer } = parseResult.data;
 
     console.log('Interrogate request received:', { 
       jdTitle: jobDescription.title, 
