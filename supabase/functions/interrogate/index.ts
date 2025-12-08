@@ -29,8 +29,8 @@ const RequestSchema = z.object({
   conversationHistory: z.array(z.object({
     role: z.string().max(20),
     content: z.string().max(10000),
-  })).max(50, "Conversation history too long").optional().default([]),
-  userAnswer: z.string().max(5000, "Answer too long").optional(),
+  })).max(50, "Conversation history too long").nullable().optional().transform(val => val ?? []),
+  userAnswer: z.string().max(5000, "Answer too long").nullable().optional(),
 });
 
 serve(async (req) => {
