@@ -6,28 +6,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Input validation schema with length limits to prevent abuse
+// Input validation schema with generous limits
 const RequestSchema = z.object({
   jobDescription: z.object({
-    title: z.string().max(200, "Job title too long"),
-    company: z.string().max(200, "Company name too long"),
-    skills: z.array(z.string().max(100)).max(50, "Too many skills"),
-    requirements: z.array(z.string().max(500)).max(20, "Too many requirements"),
-    responsibilities: z.array(z.string().max(500)).max(20, "Too many responsibilities"),
+    title: z.string().max(500, "Job title too long"),
+    company: z.string().max(500, "Company name too long"),
+    skills: z.array(z.string().max(200)).max(50, "Too many skills"),
+    requirements: z.array(z.string().max(1000)).max(30, "Too many requirements"),
+    responsibilities: z.array(z.string().max(1000)).max(30, "Too many responsibilities"),
+    rawText: z.string().max(50000).optional(), // Allow raw text to be passed
   }),
   resume: z.object({
-    skills: z.array(z.string().max(100)).max(50, "Too many skills"),
+    skills: z.array(z.string().max(200)).max(100, "Too many skills"),
     experience: z.array(z.object({
-      title: z.string().max(200),
-      company: z.string().max(200),
-      bullets: z.array(z.string().max(500)).max(20),
-    })).max(10, "Too many experience entries"),
+      title: z.string().max(500),
+      company: z.string().max(500),
+      bullets: z.array(z.string().max(1000)).max(30),
+    })).max(20, "Too many experience entries"),
+    rawText: z.string().max(100000).optional(), // Allow raw text to be passed
   }),
   conversationHistory: z.array(z.object({
     role: z.string().max(20),
-    content: z.string().max(5000),
-  })).max(20, "Conversation history too long").optional().default([]),
-  userAnswer: z.string().max(2000, "Answer too long").optional(),
+    content: z.string().max(10000),
+  })).max(50, "Conversation history too long").optional().default([]),
+  userAnswer: z.string().max(5000, "Answer too long").optional(),
 });
 
 serve(async (req) => {
@@ -44,6 +46,10 @@ serve(async (req) => {
 
     // Parse and validate input
     const rawBody = await req.json();
+    console.log('Received request body keys:', Object.keys(rawBody));
+    console.log('Resume type:', typeof rawBody.resume);
+    console.log('JobDescription type:', typeof rawBody.jobDescription);
+    
     const parseResult = RequestSchema.safeParse(rawBody);
     
     if (!parseResult.success) {
@@ -62,6 +68,7 @@ serve(async (req) => {
     console.log('Interrogate request received:', { 
       jdTitle: jobDescription.title, 
       resumeSkillsCount: resume.skills.length,
+      experienceCount: resume.experience.length,
       historyLength: conversationHistory.length 
     });
 
