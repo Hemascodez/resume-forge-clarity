@@ -14,7 +14,105 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      resume_sessions: {
+        Row: {
+          confirmed_skills: string[] | null
+          conversation_history: Json
+          created_at: string
+          gaps_identified: string[] | null
+          id: string
+          jd_company: string | null
+          jd_requirements: string[] | null
+          jd_responsibilities: string[] | null
+          jd_skills: string[] | null
+          jd_title: string | null
+          job_description_text: string
+          new_ats_score: number | null
+          old_ats_score: number | null
+          original_resume_text: string
+          resume_experience: Json | null
+          resume_skills: string[] | null
+          status: string
+          tailored_resume: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          confirmed_skills?: string[] | null
+          conversation_history?: Json
+          created_at?: string
+          gaps_identified?: string[] | null
+          id?: string
+          jd_company?: string | null
+          jd_requirements?: string[] | null
+          jd_responsibilities?: string[] | null
+          jd_skills?: string[] | null
+          jd_title?: string | null
+          job_description_text: string
+          new_ats_score?: number | null
+          old_ats_score?: number | null
+          original_resume_text: string
+          resume_experience?: Json | null
+          resume_skills?: string[] | null
+          status?: string
+          tailored_resume?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          confirmed_skills?: string[] | null
+          conversation_history?: Json
+          created_at?: string
+          gaps_identified?: string[] | null
+          id?: string
+          jd_company?: string | null
+          jd_requirements?: string[] | null
+          jd_responsibilities?: string[] | null
+          jd_skills?: string[] | null
+          jd_title?: string | null
+          job_description_text?: string
+          new_ats_score?: number | null
+          old_ats_score?: number | null
+          original_resume_text?: string
+          resume_experience?: Json | null
+          resume_skills?: string[] | null
+          status?: string
+          tailored_resume?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
