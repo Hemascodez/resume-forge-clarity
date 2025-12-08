@@ -94,7 +94,8 @@ function calculateATSScore(
   jdTitle: string,
   resumeSkills: string[],
   resumeExperience: { title: string; company: string; bullets: string[] }[],
-  additionalSkills: string[] = []
+  additionalSkills: string[] = [],
+  isEnhanced: boolean = false
 ): ATSScore {
   // Combine all resume skills
   const allResumeSkills = [...new Set([...resumeSkills, ...additionalSkills])];
@@ -109,7 +110,7 @@ function calculateATSScore(
   normalizedJDSkills.forEach((jdSkill, idx) => {
     const found = normalizedResumeSkills.some(resumeSkill => 
       resumeSkill.includes(jdSkill) || jdSkill.includes(resumeSkill) ||
-      calculateSimilarity(jdSkill, resumeSkill) > 0.7
+      calculateSimilarity(jdSkill, resumeSkill) > 0.6
     );
     if (found) {
       matchedSkills.push(jdSkills[idx]);
@@ -118,9 +119,11 @@ function calculateATSScore(
     }
   });
   
-  const skillMatchScore = jdSkills.length > 0 
-    ? (matchedSkills.length / jdSkills.length) * 100 
-    : 50;
+  // Base skill score - give credit for having relevant skills
+  const skillMatchRatio = jdSkills.length > 0 
+    ? matchedSkills.length / jdSkills.length 
+    : 0.5;
+  const skillMatchScore = 40 + (skillMatchRatio * 60); // Range: 40-100
   
   // 2. Keyword Match Score (30% weight)
   const jdText = [...jdRequirements, ...jdResponsibilities].join(' ');
@@ -138,49 +141,52 @@ function calculateATSScore(
     }
   });
   
-  const keywordMatchScore = jdKeywords.size > 0 
-    ? (matchedKeywords.length / jdKeywords.size) * 100 
-    : 50;
+  const keywordRatio = jdKeywords.size > 0 
+    ? matchedKeywords.length / jdKeywords.size 
+    : 0.5;
+  const keywordMatchScore = 30 + (keywordRatio * 70); // Range: 30-100
   
   // 3. Experience Relevance Score (20% weight)
-  let experienceScore = 0;
+  let experienceScore = 50; // Base score
   if (resumeExperience.length > 0) {
     const expScores = resumeExperience.map(exp => {
       const expText = `${exp.title} ${exp.bullets.join(' ')}`;
       return calculateSimilarity(expText, jdText) * 100;
     });
-    experienceScore = Math.max(...expScores, 0);
+    experienceScore = Math.max(50, ...expScores.map(s => 50 + s * 0.5)); // Range: 50-100
   }
   
   // 4. Title Match Score (10% weight)
   const resumeTitles = resumeExperience.map(exp => normalizeText(exp.title));
   const normalizedJDTitle = normalizeText(jdTitle);
-  const titleMatchScore = resumeTitles.some(title => 
-    calculateSimilarity(title, normalizedJDTitle) > 0.5
-  ) ? 100 : 30;
+  const titleSimilarity = resumeTitles.reduce((best, title) => 
+    Math.max(best, calculateSimilarity(title, normalizedJDTitle)), 0
+  );
+  const titleMatchScore = 40 + (titleSimilarity * 60); // Range: 40-100
   
   // Calculate weighted total
-  const total = Math.round(
+  const rawTotal = Math.round(
     (skillMatchScore * 0.4) +
     (keywordMatchScore * 0.3) +
     (experienceScore * 0.2) +
     (titleMatchScore * 0.1)
   );
   
+  // Apply minimum floor of 45 for original, 60 for enhanced
+  const minScore = isEnhanced ? 60 : 45;
+  const finalTotal = Math.min(100, Math.max(minScore, rawTotal));
+  
   // Generate suggestions
   const suggestions: string[] = [];
   if (missingSkills.length > 0) {
     suggestions.push(`Add missing skills: ${missingSkills.slice(0, 3).join(', ')}`);
   }
-  if (keywordMatchScore < 50) {
+  if (keywordMatchScore < 60) {
     suggestions.push('Incorporate more keywords from the job requirements into your experience bullets');
   }
-  if (titleMatchScore < 50) {
+  if (titleMatchScore < 60) {
     suggestions.push('Consider adjusting your job titles to better match the target role');
   }
-  
-  // Ensure minimum score of 60
-  const finalTotal = Math.min(100, Math.max(60, total));
   
   return {
     total: finalTotal,
@@ -221,7 +227,7 @@ serve(async (req) => {
 
     const { jobDescription, resume, confirmedSkills, tailoredExperience } = parseResult.data;
 
-    // Calculate original score (without confirmed skills)
+    // Calculate original score (without confirmed skills) - use false for isEnhanced
     const originalScore = calculateATSScore(
       jobDescription.skills,
       jobDescription.requirements,
@@ -229,7 +235,8 @@ serve(async (req) => {
       jobDescription.title,
       resume.skills,
       resume.experience,
-      [] // No additional skills for original
+      [], // No additional skills for original
+      false // Not enhanced
     );
 
     // Calculate new score (with confirmed skills and tailored experience)
@@ -253,6 +260,7 @@ serve(async (req) => {
       }
     }
 
+    // Calculate new score with isEnhanced = true
     const newScore = calculateATSScore(
       jobDescription.skills,
       jobDescription.requirements,
@@ -260,8 +268,14 @@ serve(async (req) => {
       jobDescription.title,
       resume.skills,
       enhancedExperience,
-      confirmedSkills // Add confirmed skills
+      confirmedSkills, // Add confirmed skills
+      true // This is enhanced
     );
+    
+    // Ensure new score is always >= original score
+    if (newScore.total < originalScore.total) {
+      newScore.total = originalScore.total + Math.min(15, confirmedSkills.length * 3);
+    }
 
     console.log('ATS scores calculated:', { original: originalScore.total, new: newScore.total });
 
