@@ -156,6 +156,45 @@ const generateCreativeDocx = async (
     }
   }
 
+  // Add new experience entries from AI interrogation
+  if (resumeData.newExperience && resumeData.newExperience.length > 0) {
+    for (const exp of resumeData.newExperience) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.title} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: `@ ${exp.company}`, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+          ],
+          spacing: { before: 150, after: 50 },
+        })
+      );
+      
+      if (exp.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' }),
+            ],
+            spacing: { after: 100 },
+          })
+        );
+      }
+
+      for (const bullet of exp.bullets) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 80 },
+          })
+        );
+      }
+    }
+  }
+
   // Education
   if (resumeData.education && resumeData.education.length > 0) {
     leftContent.push(
@@ -454,6 +493,41 @@ const generateProfessionalDocx = async (
     }
   }
 
+  // Add new experience entries from AI interrogation
+  if (resumeData.newExperience && resumeData.newExperience.length > 0) {
+    for (const exp of resumeData.newExperience) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.company} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: exp.title, size: 24, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { before: 150, after: 50 },
+        })
+      );
+      if (exp.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+      for (const bullet of exp.bullets) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 60 },
+          })
+        );
+      }
+    }
+  }
+
   // Education
   if (resumeData.education && resumeData.education.length > 0) {
     leftContent.push(
@@ -702,6 +776,41 @@ const generateSidebarDocx = async (
     }
   }
 
+  // Add new experience entries from AI interrogation
+  if (resumeData.newExperience && resumeData.newExperience.length > 0) {
+    for (const exp of resumeData.newExperience) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.company} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: exp.title, size: 24, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (exp.date) {
+        rightContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+      for (const bullet of exp.bullets) {
+        rightContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 60 },
+          })
+        );
+      }
+    }
+  }
+
   // Education
   if (resumeData.education && resumeData.education.length > 0) {
     rightContent.push(
@@ -858,6 +967,41 @@ const generateBoldDocx = async (
 
   if (resumeData.originalExperience) {
     for (const exp of resumeData.originalExperience) {
+      leftContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.company} `, bold: true, size: 24, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: exp.title, size: 24, color: '444444', font: 'Arial' }),
+          ],
+          spacing: { before: 150, after: 50 },
+        })
+      );
+      if (exp.date) {
+        leftContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 18, color: '888888', font: 'Arial' })],
+            spacing: { after: 100 },
+          })
+        );
+      }
+      for (const bullet of exp.bullets) {
+        leftContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 60 },
+          })
+        );
+      }
+    }
+  }
+
+  // Add new experience entries from AI interrogation
+  if (resumeData.newExperience && resumeData.newExperience.length > 0) {
+    for (const exp of resumeData.newExperience) {
       leftContent.push(
         new Paragraph({
           children: [
@@ -1092,6 +1236,41 @@ const generateCompactDocx = async (
 
   if (resumeData.originalExperience) {
     for (const exp of resumeData.originalExperience) {
+      rightContent.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `${exp.title} `, bold: true, size: 22, color: '1a1a1a', font: 'Arial' }),
+            new TextRun({ text: `@ ${exp.company}`, bold: true, size: 22, color: '1a1a1a', font: 'Arial' }),
+          ],
+          spacing: { before: 100, after: 50 },
+        })
+      );
+      if (exp.date) {
+        rightContent.push(
+          new Paragraph({
+            children: [new TextRun({ text: exp.date.toUpperCase(), size: 16, color: '888888', font: 'Arial' })],
+            spacing: { after: 80 },
+          })
+        );
+      }
+      for (const bullet of exp.bullets) {
+        rightContent.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '• ', size: 20, color: '1a1a1a', font: 'Arial' }),
+              new TextRun({ text: bullet, size: 20, color: '444444', font: 'Arial' }),
+            ],
+            indent: { left: 200 },
+            spacing: { after: 50 },
+          })
+        );
+      }
+    }
+  }
+
+  // Add new experience entries from AI interrogation
+  if (resumeData.newExperience && resumeData.newExperience.length > 0) {
+    for (const exp of resumeData.newExperience) {
       rightContent.push(
         new Paragraph({
           children: [

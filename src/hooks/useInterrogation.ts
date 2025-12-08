@@ -9,12 +9,20 @@ interface Message {
   context?: string;
 }
 
+interface NewExperience {
+  title: string;
+  company: string;
+  date?: string;
+  bullets: string[];
+}
+
 interface InterrogationState {
   messages: Message[];
   isLoading: boolean;
   isComplete: boolean;
   gapsIdentified: string[];
   confirmedSkills: string[];
+  newExperience: NewExperience[];
   summary: string | null;
 }
 
@@ -43,6 +51,7 @@ export const useInterrogation = () => {
     isComplete: false,
     gapsIdentified: [],
     confirmedSkills: [],
+    newExperience: [],
     summary: null,
   });
 
@@ -76,6 +85,7 @@ export const useInterrogation = () => {
         isComplete: data.isComplete || false,
         gapsIdentified: data.gapsIdentified || [],
         confirmedSkills: data.confirmedSkills || [],
+        newExperience: data.newExperience || [],
         summary: data.summary || null,
       }));
     } catch (error) {
@@ -136,6 +146,7 @@ export const useInterrogation = () => {
         isComplete: data.isComplete || false,
         gapsIdentified: data.gapsIdentified || prev.gapsIdentified,
         confirmedSkills: data.confirmedSkills || prev.confirmedSkills,
+        newExperience: data.newExperience || prev.newExperience,
         summary: data.summary || prev.summary,
       }));
     } catch (error) {
@@ -152,6 +163,7 @@ export const useInterrogation = () => {
       isComplete: false,
       gapsIdentified: [],
       confirmedSkills: [],
+      newExperience: [],
       summary: null,
     });
   }, []);

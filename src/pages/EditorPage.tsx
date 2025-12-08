@@ -13,6 +13,13 @@ import { ResumeTemplateSelector } from "@/components/ResumeTemplateSelector";
 import { useATSScore } from "@/hooks/useATSScore";
 import { toast } from "sonner";
 
+interface NewExperience {
+  title: string;
+  company: string;
+  date?: string;
+  bullets: string[];
+}
+
 interface LocationState {
   sessionId?: string;
   jobDescription?: {
@@ -36,6 +43,7 @@ interface LocationState {
   };
   gapsIdentified?: string[];
   confirmedSkills?: string[];
+  newExperience?: NewExperience[];
   summary?: string;
 }
 
@@ -84,6 +92,7 @@ const EditorPage: React.FC = () => {
   
   const resumeData = locationState?.resume || fallbackResume;
   const confirmedSkills = locationState?.confirmedSkills || [];
+  const newExperience = locationState?.newExperience || [];
   
   // Build initial experience from resume data AND add AI-enhanced bullets for confirmed skills
   const buildInitialExperience = () => {
@@ -178,6 +187,7 @@ const EditorPage: React.FC = () => {
       skills: resumeData.skills,
       experience,
       originalExperience: locationState?.resume?.experience,
+      newExperience: newExperience,
     };
     
     try {

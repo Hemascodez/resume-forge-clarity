@@ -44,6 +44,7 @@ const InterrogationPage: React.FC = () => {
     isComplete,
     gapsIdentified,
     confirmedSkills,
+    newExperience,
     summary,
     startInterrogation,
     sendAnswer,
@@ -77,12 +78,13 @@ const InterrogationPage: React.FC = () => {
             resume: locationState?.resume,
             gapsIdentified,
             confirmedSkills,
+            newExperience,
             summary,
           },
         });
       }, 2000);
     }
-  }, [isComplete, summary, navigate, locationState, gapsIdentified, confirmedSkills]);
+  }, [isComplete, summary, navigate, locationState, gapsIdentified, confirmedSkills, newExperience]);
 
   const handleQuickReply = (response: "yes" | "no" | "edit") => {
     if (!locationState) return;
