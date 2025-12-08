@@ -1,111 +1,114 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { ChatMessage } from "@/components/ChatMessage";
-import { QuickReplyChips } from "@/components/QuickReplyChips";
 import { JoystickButton } from "@/components/JoystickButton";
 import { TriggerProgress, ControllerCard, MiniJoystick, JoystickController } from "@/components/JoystickElements";
 import { Send, ArrowLeft, Zap, Check, X, Edit3 } from "lucide-react";
-interface Message {
-  id: number;
-  role: "ai" | "user";
-  content: string;
+import { useInterrogation } from "@/hooks/useInterrogation";
+import { toast } from "sonner";
+
+interface LocationState {
+  jobDescription: {
+    title: string;
+    company: string;
+    skills: string[];
+    requirements: string[];
+    responsibilities: string[];
+    rawText: string;
+  };
+  resume: {
+    skills: string[];
+    experience: {
+      title: string;
+      company: string;
+      bullets: string[];
+    }[];
+    rawText: string;
+  };
 }
-const mockQuestions = ["The JD requires React Native experience. You only listed React. Have you worked with React Native?", "I see the role needs GraphQL expertise. Your resume mentions REST APIs. Do you have GraphQL experience?", "The position requires team leadership. You have 'collaborated with teams' listed. Have you directly led or managed a team?", "TypeScript is listed as a requirement. You have JavaScript listed. Are you proficient in TypeScript?", "The JD mentions CI/CD pipelines. I don't see this on your resume. Have you set up or maintained CI/CD systems?"];
+
 const InterrogationPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
-  const [gapsResolved, setGapsResolved] = useState(0);
-  const totalGaps = mockQuestions.length;
+  const [hasStarted, setHasStarted] = useState(false);
+
+  const locationState = location.state as LocationState | null;
+
+  const {
+    messages,
+    isLoading,
+    isComplete,
+    gapsIdentified,
+    confirmedSkills,
+    summary,
+    startInterrogation,
+    sendAnswer,
+    reset,
+  } = useInterrogation();
+
+  // Start interrogation when page loads with data
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsTyping(true);
+    if (locationState && !hasStarted) {
+      setHasStarted(true);
+      startInterrogation(locationState.jobDescription, locationState.resume);
+    } else if (!locationState && !hasStarted) {
+      toast.error("No data found. Please start from the beginning.");
+      navigate("/");
+    }
+  }, [locationState, hasStarted, startInterrogation, navigate]);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
+
+  // Navigate to editor when complete
+  useEffect(() => {
+    if (isComplete && summary) {
+      toast.success("Analysis complete! Preparing your tailored resume...");
       setTimeout(() => {
-        setMessages([{
-          id: 1,
-          role: "ai",
-          content: "I've analyzed your resume against the job description. I found some gaps we need to verify together. I'll ask you about each one to ensure accuracy. Let's begin!"
-        }]);
-        setIsTyping(false);
-        setTimeout(() => {
-          setIsTyping(true);
-          setTimeout(() => {
-            setMessages(prev => [...prev, {
-              id: 2,
-              role: "ai",
-              content: mockQuestions[0]
-            }]);
-            setIsTyping(false);
-          }, 1500);
-        }, 500);
+        navigate("/editor", {
+          state: {
+            jobDescription: locationState?.jobDescription,
+            resume: locationState?.resume,
+            gapsIdentified,
+            confirmedSkills,
+            summary,
+          },
+        });
       }, 2000);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, []);
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: "smooth"
-    });
-  }, [messages, isTyping]);
-  const handleQuickReply = (response: string) => {
+    }
+  }, [isComplete, summary, navigate, locationState, gapsIdentified, confirmedSkills]);
+
+  const handleQuickReply = (response: "yes" | "no" | "edit") => {
+    if (!locationState) return;
+
     const responseMap: Record<string, string> = {
       yes: "Yes, I have experience with that. Please add it to my resume.",
       no: "No, I don't have that specific experience. Let's skip it.",
-      edit: "Let me provide more details about my experience..."
+      edit: "Let me provide more details about my experience...",
     };
-    const userMessage: Message = {
-      id: messages.length + 1,
-      role: "user",
-      content: responseMap[response]
-    };
-    setMessages(prev => [...prev, userMessage]);
-    setGapsResolved(prev => prev + 1);
-    if (currentQuestion < totalGaps - 1) {
-      setIsTyping(true);
-      setTimeout(() => {
-        const nextQ = currentQuestion + 1;
-        setCurrentQuestion(nextQ);
-        setMessages(prev => [...prev, {
-          id: prev.length + 1,
-          role: "ai",
-          content: response === "yes" ? `Great! I've noted that. ${mockQuestions[nextQ]}` : response === "no" ? `Understood, we'll keep it accurate. ${mockQuestions[nextQ]}` : `Got it, let me know the details. ${mockQuestions[nextQ]}`
-        }]);
-        setIsTyping(false);
-      }, 1500);
-    } else {
-      setIsTyping(true);
-      setTimeout(() => {
-        setMessages(prev => [...prev, {
-          id: prev.length + 1,
-          role: "ai",
-          content: "Excellent! I've verified all the gaps. Your resume is now tailored with 100% verified information. Let's review the final result!"
-        }]);
-        setIsTyping(false);
-        setTimeout(() => {
-          navigate("/editor");
-        }, 2000);
-      }, 1500);
-    }
+
+    sendAnswer(responseMap[response], locationState.jobDescription, locationState.resume);
   };
+
   const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
-    const userMessage: Message = {
-      id: messages.length + 1,
-      role: "user",
-      content: inputValue
-    };
-    setMessages(prev => [...prev, userMessage]);
+    if (!inputValue.trim() || !locationState) return;
+    sendAnswer(inputValue, locationState.jobDescription, locationState.resume);
     setInputValue("");
-    handleQuickReply("edit");
   };
-  const progress = gapsResolved / totalGaps * 100;
-  return <div className="min-h-screen relative overflow-hidden flex flex-col bg-background">
+
+  // Calculate progress based on conversation flow
+  const totalExpectedQuestions = Math.max(gapsIdentified.length, 3);
+  const answeredQuestions = Math.floor(messages.filter(m => m.role === "user").length);
+  const progress = isComplete ? 100 : Math.min((answeredQuestions / totalExpectedQuestions) * 100, 95);
+
+  return (
+    <div className="min-h-screen relative overflow-hidden flex flex-col bg-background">
       <BackgroundBlobs variant="chat" />
 
       {/* Decorative Controller */}
@@ -132,7 +135,7 @@ const InterrogationPage: React.FC = () => {
           <div className="hidden md:flex items-center gap-2">
             <MiniJoystick variant="accent" className="w-8 h-8" />
             <span className="text-sm text-muted-foreground font-medium">
-              {gapsResolved}/{totalGaps}
+              {confirmedSkills.length} verified
             </span>
           </div>
           <div className="w-32 md:w-48">
@@ -145,37 +148,64 @@ const InterrogationPage: React.FC = () => {
       <main className="relative z-10 flex-1 container mx-auto max-w-3xl px-4 py-6 overflow-hidden flex flex-col">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-thin">
-          {messages.map(message => <ChatMessage key={message.id} role={message.role} content={message.content} />)}
-          
-          {isTyping && <ChatMessage role="ai" content="" isTyping />}
-          
+          {messages.map((message, index) => (
+            <ChatMessage
+              key={index}
+              role={message.role === "assistant" ? "ai" : "user"}
+              content={message.content}
+            />
+          ))}
+
+          {isLoading && <ChatMessage role="ai" content="" isTyping />}
+
           <div ref={messagesEndRef} />
         </div>
 
         {/* Quick Replies & Input - Controller Style */}
         <ControllerCard className="space-y-4">
-          {gapsResolved < totalGaps && !isTyping && messages.length > 1 && <div className="flex flex-wrap gap-3 justify-center">
+          {!isComplete && !isLoading && messages.length > 0 && (
+            <div className="flex flex-wrap gap-3 justify-center">
               <JoystickButton variant="accent" size="md" onClick={() => handleQuickReply("yes")}>
                 <Check className="w-5 h-5" />
               </JoystickButton>
-              <JoystickButton variant="neutral" size="md" onClick={() => handleQuickReply("no")} className="border-destructive text-destructive">
+              <JoystickButton
+                variant="neutral"
+                size="md"
+                onClick={() => handleQuickReply("no")}
+                className="border-destructive text-destructive"
+              >
                 <X className="w-5 h-5" />
               </JoystickButton>
               <JoystickButton variant="primary" size="md" onClick={() => handleQuickReply("edit")}>
                 <Edit3 className="w-5 h-5" />
               </JoystickButton>
-            </div>}
-          
+            </div>
+          )}
+
           <div className="flex gap-3">
             <div className="flex-1 rounded-2xl bg-gradient-to-b from-muted to-secondary border-2 border-border p-1 shadow-[inset_0_4px_12px_rgba(0,0,0,0.08)]">
-              <Input placeholder="Type your response..." value={inputValue} onChange={e => setInputValue(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSendMessage()} className="border-0 bg-card/80 rounded-xl focus-visible:ring-0" />
+              <Input
+                placeholder="Type your response..."
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                disabled={isLoading || isComplete}
+                className="border-0 bg-card/80 rounded-xl focus-visible:ring-0"
+              />
             </div>
-            <JoystickButton variant="primary" size="md" onClick={handleSendMessage} disabled={!inputValue.trim()}>
+            <JoystickButton
+              variant="primary"
+              size="md"
+              onClick={handleSendMessage}
+              disabled={!inputValue.trim() || isLoading || isComplete}
+            >
               <Send className="w-5 h-5" />
             </JoystickButton>
           </div>
         </ControllerCard>
       </main>
-    </div>;
+    </div>
+  );
 };
+
 export default InterrogationPage;

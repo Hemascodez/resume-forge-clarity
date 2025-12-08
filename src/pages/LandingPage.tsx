@@ -6,18 +6,161 @@ import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { JoystickButton, DialKnob, DPad } from "@/components/JoystickButton";
 import { JoystickController, MiniJoystick, ControllerCard } from "@/components/JoystickElements";
-import { Sparkles, Zap, Shield, ArrowRight } from "lucide-react";
+import { Sparkles, Zap, Shield, ArrowRight, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+// Simple JD parser - extracts structured data from job description text
+const parseJobDescription = (text: string) => {
+  const lines = text.split('\n').filter(line => line.trim());
+  
+  // Try to extract title from first meaningful line
+  const title = lines[0]?.replace(/^(job title:|position:|role:)/i, '').trim() || 'Job Position';
+  
+  // Try to extract company name
+  const companyMatch = text.match(/(?:company|organization|employer):\s*([^\n]+)/i);
+  const company = companyMatch?.[1]?.trim() || 'Company';
+  
+  // Extract skills - look for common patterns
+  const skillPatterns = [
+    /(?:skills?|technologies|tech stack|requirements?):\s*([^\n]+)/gi,
+    /(?:experience with|proficiency in|knowledge of)\s+([^,.]+)/gi,
+  ];
+  
+  const skills: string[] = [];
+  const requirements: string[] = [];
+  const responsibilities: string[] = [];
+  
+  // Extract bullet points as requirements or responsibilities
+  lines.forEach(line => {
+    const cleanLine = line.replace(/^[-•*]\s*/, '').trim();
+    if (cleanLine.length > 10) {
+      if (cleanLine.toLowerCase().includes('experience') || 
+          cleanLine.toLowerCase().includes('required') ||
+          cleanLine.toLowerCase().includes('must have') ||
+          cleanLine.toLowerCase().includes('years')) {
+        requirements.push(cleanLine);
+      } else if (cleanLine.toLowerCase().includes('will') ||
+                 cleanLine.toLowerCase().includes('responsible') ||
+                 cleanLine.toLowerCase().includes('manage') ||
+                 cleanLine.toLowerCase().includes('develop')) {
+        responsibilities.push(cleanLine);
+      }
+    }
+  });
+  
+  // Extract technology/skill keywords
+  const techKeywords = text.match(/\b(React|Angular|Vue|Node\.?js|Python|Java|JavaScript|TypeScript|SQL|PostgreSQL|MongoDB|AWS|Azure|GCP|Docker|Kubernetes|GraphQL|REST|API|Git|CI\/CD|Agile|Scrum|Machine Learning|AI|Data Science|Redux|Next\.?js|Express|Django|Flask|Spring|Ruby|Rails|PHP|Laravel|Swift|Kotlin|Flutter|React Native|HTML|CSS|SASS|Tailwind|Bootstrap|Figma|Sketch|UI\/UX|DevOps|Linux|Terraform|Jenkins|Ansible)\b/gi);
+  
+  if (techKeywords) {
+    const uniqueSkills = [...new Set(techKeywords.map(s => s.toLowerCase()))];
+    skills.push(...uniqueSkills);
+  }
+  
+  return {
+    title,
+    company,
+    skills: skills.slice(0, 15), // Limit to 15 skills
+    requirements: requirements.slice(0, 10),
+    responsibilities: responsibilities.slice(0, 10),
+    rawText: text,
+  };
+};
+
+// Simple resume parser - extracts basic structure from resume text
+const parseResume = async (file: File): Promise<{
+  skills: string[];
+  experience: { title: string; company: string; bullets: string[] }[];
+  rawText: string;
+}> => {
+  const text = await file.text();
+  
+  const skills: string[] = [];
+  const experience: { title: string; company: string; bullets: string[] }[] = [];
+  
+  // Extract skills section
+  const skillsMatch = text.match(/(?:skills|technologies|tech stack|technical skills)[\s:]*([^]*?)(?:experience|education|projects|$)/i);
+  if (skillsMatch) {
+    const skillsText = skillsMatch[1];
+    const extractedSkills = skillsText.match(/\b(React|Angular|Vue|Node\.?js|Python|Java|JavaScript|TypeScript|SQL|PostgreSQL|MongoDB|AWS|Azure|GCP|Docker|Kubernetes|GraphQL|REST|API|Git|CI\/CD|Agile|Scrum|Machine Learning|AI|Data Science|Redux|Next\.?js|Express|Django|Flask|Spring|Ruby|Rails|PHP|Laravel|Swift|Kotlin|Flutter|React Native|HTML|CSS|SASS|Tailwind|Bootstrap|Figma|Sketch|UI\/UX|DevOps|Linux|Terraform|Jenkins|Ansible)\b/gi);
+    if (extractedSkills) {
+      skills.push(...[...new Set(extractedSkills.map(s => s.toLowerCase()))]);
+    }
+  }
+  
+  // Extract experience entries (simplified)
+  const experienceSection = text.match(/(?:experience|work history|employment)[\s:]*([^]*?)(?:education|skills|projects|$)/i);
+  if (experienceSection) {
+    const lines = experienceSection[1].split('\n').filter(l => l.trim());
+    let currentExp: { title: string; company: string; bullets: string[] } | null = null;
+    
+    lines.forEach(line => {
+      const cleanLine = line.trim();
+      // Check if this looks like a job title line
+      if (cleanLine.match(/(?:engineer|developer|manager|analyst|designer|lead|senior|junior|intern)/i) && !cleanLine.startsWith('-') && !cleanLine.startsWith('•')) {
+        if (currentExp) {
+          experience.push(currentExp);
+        }
+        currentExp = {
+          title: cleanLine.split(/[|@–-]/)[0]?.trim() || cleanLine,
+          company: cleanLine.split(/[|@–-]/)[1]?.trim() || 'Company',
+          bullets: [],
+        };
+      } else if (currentExp && (cleanLine.startsWith('-') || cleanLine.startsWith('•') || cleanLine.startsWith('*'))) {
+        currentExp.bullets.push(cleanLine.replace(/^[-•*]\s*/, ''));
+      }
+    });
+    
+    if (currentExp) {
+      experience.push(currentExp);
+    }
+  }
+  
+  // If no structured experience found, create a placeholder
+  if (experience.length === 0) {
+    experience.push({
+      title: 'Professional Experience',
+      company: 'Various',
+      bullets: text.split('\n')
+        .filter(l => l.trim().startsWith('-') || l.trim().startsWith('•'))
+        .slice(0, 5)
+        .map(l => l.replace(/^[-•*]\s*/, '').trim()),
+    });
+  }
+  
+  return {
+    skills,
+    experience,
+    rawText: text,
+  };
+};
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [jobDescription, setJobDescription] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleInitialize = () => {
-    if (jobDescription && resumeFile) {
-      sessionStorage.setItem("jobDescription", jobDescription);
-      sessionStorage.setItem("resumeFileName", resumeFile.name);
-      navigate("/interrogation");
+  const handleInitialize = async () => {
+    if (!jobDescription || !resumeFile) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Parse both inputs
+      const parsedJD = parseJobDescription(jobDescription);
+      const parsedResume = await parseResume(resumeFile);
+      
+      // Navigate with parsed data
+      navigate("/interrogation", {
+        state: {
+          jobDescription: parsedJD,
+          resume: parsedResume,
+        },
+      });
+    } catch (error) {
+      console.error("Error parsing files:", error);
+      toast.error("Error processing your files. Please try again.");
+      setIsProcessing(false);
     }
   };
 
@@ -129,11 +272,20 @@ const LandingPage: React.FC = () => {
               variant="hero"
               size="xl"
               onClick={handleInitialize}
-              disabled={!isReady}
+              disabled={!isReady || isProcessing}
               className="group"
             >
-              Initialize Analysis
-              <ArrowRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  Initialize Analysis
+                  <ArrowRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
+                </>
+              )}
             </Button>
             
             {!isReady && (
