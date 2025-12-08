@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { JoystickButton, DialKnob, DPad } from "@/components/JoystickButton";
 import { JoystickController, MiniJoystick, ControllerCard } from "@/components/JoystickElements";
-import { Sparkles, Zap, Shield, ArrowRight, Loader2 } from "lucide-react";
+import { Sparkles, Zap, Shield, ArrowRight, Loader2, Link, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { storeOriginalFile } from "@/lib/resumeEditor";
 import { supabase } from "@/integrations/supabase/client";
@@ -172,8 +173,37 @@ const parseResume = async (file: File): Promise<{
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [jobDescription, setJobDescription] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
+  const [inputMode, setInputMode] = useState<"paste" | "url">("paste");
+  const [isFetchingJD, setIsFetchingJD] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const fetchJobFromUrl = async () => {
+    if (!jobUrl.trim()) return;
+    
+    setIsFetchingJD(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-job-description', {
+        body: { url: jobUrl }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.jobDescription) {
+        setJobDescription(data.jobDescription);
+        setInputMode("paste");
+        toast.success("Job description fetched successfully!");
+      } else {
+        throw new Error("Could not extract job description");
+      }
+    } catch (error) {
+      console.error("Error fetching JD:", error);
+      toast.error("Failed to fetch job description. Please paste it manually.");
+    } finally {
+      setIsFetchingJD(false);
+    }
+  };
 
   const handleInitialize = async () => {
     if (!jobDescription || !resumeFile) return;
@@ -273,16 +303,87 @@ const LandingPage: React.FC = () => {
                 </div>
                 Target Job Description
               </label>
-              <Textarea
-                placeholder="Paste the job description here... Include the role title, requirements, and key responsibilities."
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                className="min-h-[240px] rounded-2xl border-2 border-border bg-card shadow-sm focus:border-primary focus:ring-0 resize-none"
-              />
-              <p className="text-xs text-muted-foreground">
-                {jobDescription.length} characters
-                {jobDescription.length < 50 && " • Minimum 50 required"}
-              </p>
+              
+              {/* Toggle between paste and URL */}
+              <div className="flex gap-2 p-1 bg-secondary/50 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setInputMode("paste")}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    inputMode === "paste"
+                      ? "bg-card shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  Paste JD
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInputMode("url")}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    inputMode === "url"
+                      ? "bg-card shadow-sm text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Link className="w-4 h-4" />
+                  Job URL
+                </button>
+              </div>
+
+              {inputMode === "paste" ? (
+                <>
+                  <Textarea
+                    placeholder="Paste the job description here... Include the role title, requirements, and key responsibilities."
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    className="min-h-[200px] rounded-2xl border-2 border-border bg-card shadow-sm focus:border-primary focus:ring-0 resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {jobDescription.length} characters
+                    {jobDescription.length < 50 && " • Minimum 50 required"}
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <Input
+                    type="url"
+                    placeholder="https://linkedin.com/jobs/... or any job posting URL"
+                    value={jobUrl}
+                    onChange={(e) => setJobUrl(e.target.value)}
+                    className="rounded-xl"
+                  />
+                  <Button
+                    type="button"
+                    onClick={fetchJobFromUrl}
+                    disabled={!jobUrl.trim() || isFetchingJD}
+                    className="w-full"
+                    variant="secondary"
+                  >
+                    {isFetchingJD ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Fetching Job Description...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Fetch Job Description
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center">
+                    AI will extract the job description from the URL
+                  </p>
+                  {jobDescription && (
+                    <div className="p-3 bg-accent/10 rounded-xl border border-accent/20">
+                      <p className="text-xs text-accent font-medium mb-1">✓ Job description fetched</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{jobDescription.slice(0, 150)}...</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Resume Upload Zone */}
