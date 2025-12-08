@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
@@ -14,7 +15,7 @@ const RequestSchema = z.object({
     skills: z.array(z.string().max(200)).max(50, "Too many skills"),
     requirements: z.array(z.string().max(1000)).max(30, "Too many requirements"),
     responsibilities: z.array(z.string().max(1000)).max(30, "Too many responsibilities"),
-    rawText: z.string().max(50000).optional(), // Allow raw text to be passed
+    rawText: z.string().max(50000).optional(),
   }),
   resume: z.object({
     skills: z.array(z.string().max(200)).max(100, "Too many skills"),
@@ -23,7 +24,7 @@ const RequestSchema = z.object({
       company: z.string().max(500),
       bullets: z.array(z.string().max(1000)).max(30),
     })).max(20, "Too many experience entries"),
-    rawText: z.string().max(100000).optional(), // Allow raw text to be passed
+    rawText: z.string().max(100000).optional(),
   }),
   conversationHistory: z.array(z.object({
     role: z.string().max(20),
@@ -33,22 +34,18 @@ const RequestSchema = z.object({
 });
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
-    // Parse and validate input
     const rawBody = await req.json();
     console.log('Received request body keys:', Object.keys(rawBody));
-    console.log('Resume type:', typeof rawBody.resume);
-    console.log('JobDescription type:', typeof rawBody.jobDescription);
     
     const parseResult = RequestSchema.safeParse(rawBody);
     
@@ -72,7 +69,6 @@ serve(async (req) => {
       historyLength: conversationHistory.length 
     });
 
-    // Build the system prompt for gap analysis and question generation
     const systemPrompt = `You are an expert AI recruiter conducting a friendly but thorough interview to help tailor a resume to a job description. Your goal is to uncover hidden skills and experiences that the candidate may have but didn't list on their resume.
 
 CRITICAL RULES:
@@ -109,33 +105,30 @@ Respond with a JSON object containing:
 
 If the conversation is complete (all gaps addressed or 5+ questions asked), set isComplete to true and provide a summary.`;
 
-    // Build messages array
     const messages = [
       { role: 'system', content: systemPrompt },
       ...conversationHistory,
     ];
 
-    // Add user's latest answer if provided
     if (userAnswer) {
       messages.push({ role: 'user', content: userAnswer });
     } else {
-      // Initial request - ask AI to start the interrogation
       messages.push({ 
         role: 'user', 
         content: 'Please analyze the resume against the job description and ask your first clarifying question about any skill gaps you identify.' 
       });
     }
 
-    console.log('Calling Lovable AI with', messages.length, 'messages');
+    console.log('Calling OpenAI GPT-4o-mini with', messages.length, 'messages');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o-mini',
         messages,
         temperature: 0.7,
         max_tokens: 1000,
@@ -144,7 +137,7 @@ If the conversation is complete (all gaps addressed or 5+ questions asked), set 
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI gateway error:', response.status, errorText);
+      console.error('OpenAI API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
@@ -152,32 +145,23 @@ If the conversation is complete (all gaps addressed or 5+ questions asked), set 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'AI usage limit reached. Please add credits to continue.' }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
       
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
     const aiResponse = data.choices?.[0]?.message?.content;
 
-    console.log('AI response received:', aiResponse?.substring(0, 200));
+    console.log('OpenAI response received:', aiResponse?.substring(0, 200));
 
-    // Parse the JSON response from AI
     let parsedResponse;
     try {
-      // Extract JSON from the response (handle markdown code blocks)
       const jsonMatch = aiResponse.match(/```json\n?([\s\S]*?)\n?```/) || 
                         aiResponse.match(/\{[\s\S]*\}/);
       const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : aiResponse;
       parsedResponse = JSON.parse(jsonStr);
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
-      // Fallback: treat the response as a plain question
       parsedResponse = {
         question: aiResponse,
         skillBeingProbed: 'general',
