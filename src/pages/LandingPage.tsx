@@ -7,7 +7,7 @@ import { BackgroundBlobs } from "@/components/BackgroundBlobs";
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { JoystickButton, DialKnob, DPad } from "@/components/JoystickButton";
 import { JoystickController, MiniJoystick, ControllerCard } from "@/components/JoystickElements";
-import { Sparkles, Zap, Shield, ArrowRight, Loader2, Link, FileText } from "lucide-react";
+import { Sparkles, Zap, Shield, ArrowRight, Loader2, Link, FileText, ClipboardPaste } from "lucide-react";
 import { toast } from "sonner";
 import { storeOriginalFile } from "@/lib/resumeEditor";
 import { supabase } from "@/integrations/supabase/client";
@@ -382,13 +382,31 @@ const LandingPage: React.FC = () => {
                 </>
               ) : (
                 <div className="space-y-3">
-                  <Input
-                    type="text"
-                    placeholder="Paste LinkedIn job link or any job posting URL"
-                    value={jobUrl}
-                    onChange={(e) => handleJobUrlChange(e.target.value)}
-                    className="rounded-xl"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Paste LinkedIn job link or any job posting URL"
+                      value={jobUrl}
+                      onChange={(e) => handleJobUrlChange(e.target.value)}
+                      className="rounded-xl flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0 rounded-xl"
+                      onClick={async () => {
+                        try {
+                          const text = await navigator.clipboard.readText();
+                          handleJobUrlChange(text);
+                        } catch (err) {
+                          toast.error("Could not access clipboard. Please paste manually.");
+                        }
+                      }}
+                    >
+                      <ClipboardPaste className="w-4 h-4" />
+                    </Button>
+                  </div>
                   <Button
                     type="button"
                     onClick={fetchJobFromUrl}
