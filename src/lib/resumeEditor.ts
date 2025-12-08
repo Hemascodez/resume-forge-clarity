@@ -1,5 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, TableCell, TableRow, Table, WidthType, convertInchesToTwip, Header, Footer } from 'docx';
 import { saveAs } from 'file-saver';
+import jsPDF from 'jspdf';
 
 export type TemplateType = 'creative' | 'professional' | 'sidebar' | 'bold' | 'compact';
 
@@ -1206,36 +1207,213 @@ const generateCompactDocx = async (
   return await Packer.toBlob(doc);
 };
 
-// Main export function - generates template-based resume
+// Generate PDF resume with complete content (original + modifications)
+const generatePdfResume = (
+  resumeData: ResumeData,
+  modifications: ResumeModifications,
+): jsPDF => {
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const margin = 15;
+  const contentWidth = pageWidth - 2 * margin;
+  let yPos = margin;
+
+  const newSkills = modifications.confirmedSkills.filter(
+    skill => !modifications.originalSkills.some(os => os.toLowerCase() === skill.toLowerCase())
+  );
+  const allSkills = [...modifications.originalSkills, ...newSkills];
+
+  // Helper function to add text with word wrap
+  const addWrappedText = (text: string, x: number, y: number, maxWidth: number, fontSize: number, color: string = '#444444'): number => {
+    pdf.setFontSize(fontSize);
+    pdf.setTextColor(color);
+    const lines = pdf.splitTextToSize(text, maxWidth);
+    pdf.text(lines, x, y);
+    return y + (lines.length * fontSize * 0.4);
+  };
+
+  // Header - Name
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(24);
+  pdf.setTextColor('#1a1a1a');
+  pdf.text(resumeData.name, margin, yPos);
+  yPos += 8;
+
+  // Title
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(14);
+  pdf.setTextColor('#666666');
+  pdf.text(resumeData.title, margin, yPos);
+  yPos += 6;
+
+  // Contact info line
+  const contactParts = [resumeData.email, resumeData.phone, resumeData.location].filter(Boolean);
+  if (contactParts.length > 0) {
+    pdf.setFontSize(10);
+    pdf.setTextColor('#888888');
+    pdf.text(contactParts.join(' | '), margin, yPos);
+    yPos += 8;
+  }
+
+  // Summary
+  if (resumeData.summary) {
+    yPos += 4;
+    pdf.setFont('helvetica', 'italic');
+    yPos = addWrappedText(resumeData.summary, margin, yPos, contentWidth, 10, '#444444');
+    yPos += 6;
+  }
+
+  // Skills Section
+  yPos += 4;
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(12);
+  pdf.setTextColor('#1a1a1a');
+  pdf.text('SKILLS', margin, yPos);
+  yPos += 2;
+  pdf.setDrawColor('#3b82f6');
+  pdf.setLineWidth(0.5);
+  pdf.line(margin, yPos, margin + 30, yPos);
+  yPos += 6;
+
+  // Skills as comma-separated with new skills highlighted
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+  let skillX = margin;
+  const skillY = yPos;
+  for (let i = 0; i < allSkills.length; i++) {
+    const skill = allSkills[i];
+    const isNew = newSkills.includes(skill);
+    const skillText = skill + (i < allSkills.length - 1 ? ', ' : '');
+    
+    pdf.setTextColor(isNew ? '#22c55e' : '#444444');
+    if (isNew) pdf.setFont('helvetica', 'bold');
+    else pdf.setFont('helvetica', 'normal');
+    
+    const textWidth = pdf.getTextWidth(skillText);
+    if (skillX + textWidth > pageWidth - margin) {
+      skillX = margin;
+      yPos += 5;
+    }
+    pdf.text(skillText, skillX, yPos);
+    skillX += textWidth;
+  }
+  yPos += 10;
+
+  // Experience Section
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(12);
+  pdf.setTextColor('#1a1a1a');
+  pdf.text('EXPERIENCE', margin, yPos);
+  yPos += 2;
+  pdf.setDrawColor('#3b82f6');
+  pdf.line(margin, yPos, margin + 40, yPos);
+  yPos += 8;
+
+  // Add original experience entries with their bullets
+  if (resumeData.originalExperience && resumeData.originalExperience.length > 0) {
+    for (const exp of resumeData.originalExperience) {
+      // Check if we need a new page
+      if (yPos > 270) {
+        pdf.addPage();
+        yPos = margin;
+      }
+
+      // Job title and company
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setTextColor('#1a1a1a');
+      pdf.text(`${exp.title} @ ${exp.company}`, margin, yPos);
+      yPos += 5;
+
+      // Date
+      if (exp.date) {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor('#888888');
+        pdf.text(exp.date, margin, yPos);
+        yPos += 5;
+      }
+
+      // Original bullets
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      for (const bullet of exp.bullets) {
+        if (yPos > 275) {
+          pdf.addPage();
+          yPos = margin;
+        }
+        pdf.setTextColor('#444444');
+        yPos = addWrappedText(`• ${bullet}`, margin + 3, yPos, contentWidth - 6, 10, '#444444');
+        yPos += 2;
+      }
+      yPos += 4;
+    }
+  }
+
+  // Add AI-enhanced bullets (modified experience)
+  const modifiedBullets = resumeData.experience.filter(exp => exp.isModified);
+  if (modifiedBullets.length > 0) {
+    if (yPos > 265) {
+      pdf.addPage();
+      yPos = margin;
+    }
+    
+    // Add enhanced bullets with green color
+    for (const bullet of modifiedBullets) {
+      if (yPos > 275) {
+        pdf.addPage();
+        yPos = margin;
+      }
+      pdf.setFont('helvetica', 'normal');
+      yPos = addWrappedText(`• ${bullet.text}`, margin + 3, yPos, contentWidth - 6, 10, '#22c55e');
+      yPos += 2;
+    }
+  }
+
+  // Education Section
+  if (resumeData.education && resumeData.education.length > 0) {
+    yPos += 6;
+    if (yPos > 260) {
+      pdf.addPage();
+      yPos = margin;
+    }
+    
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(12);
+    pdf.setTextColor('#1a1a1a');
+    pdf.text('EDUCATION', margin, yPos);
+    yPos += 2;
+    pdf.setDrawColor('#3b82f6');
+    pdf.line(margin, yPos, margin + 40, yPos);
+    yPos += 8;
+
+    for (const edu of resumeData.education) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(11);
+      pdf.setTextColor('#1a1a1a');
+      pdf.text(`${edu.degree}`, margin, yPos);
+      yPos += 5;
+      
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.setTextColor('#666666');
+      pdf.text(edu.school + (edu.date ? ` | ${edu.date}` : ''), margin, yPos);
+      yPos += 6;
+    }
+  }
+
+  return pdf;
+};
+
+// Main export function - generates PDF resume with complete content
 export const downloadTemplateResume = async (
   template: TemplateType,
   resumeData: ResumeData,
   modifications: ResumeModifications,
 ): Promise<void> => {
-  let blob: Blob;
-  
-  switch (template) {
-    case 'creative':
-      blob = await generateCreativeDocx(resumeData, modifications);
-      break;
-    case 'professional':
-      blob = await generateProfessionalDocx(resumeData, modifications);
-      break;
-    case 'sidebar':
-      blob = await generateSidebarDocx(resumeData, modifications);
-      break;
-    case 'bold':
-      blob = await generateBoldDocx(resumeData, modifications);
-      break;
-    case 'compact':
-      blob = await generateCompactDocx(resumeData, modifications);
-      break;
-    default:
-      blob = await generateCreativeDocx(resumeData, modifications);
-  }
-  
-  const filename = `${resumeData.name.replace(/[^a-zA-Z0-9]/g, '_')}_${modifications.company?.replace(/[^a-zA-Z0-9]/g, '_') || 'Tailored'}_${template}_Resume.docx`;
-  saveAs(blob, filename);
+  const pdf = generatePdfResume(resumeData, modifications);
+  const filename = `${resumeData.name.replace(/[^a-zA-Z0-9]/g, '_')}_${modifications.company?.replace(/[^a-zA-Z0-9]/g, '_') || 'Tailored'}_Resume.pdf`;
+  pdf.save(filename);
 };
 
 // Legacy function for backward compatibility
