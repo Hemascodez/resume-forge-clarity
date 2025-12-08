@@ -179,13 +179,38 @@ const LandingPage: React.FC = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Extract URL from pasted text (LinkedIn mobile app pastes "Check out this job at Company: URL")
+  const extractUrlFromText = (text: string): string | null => {
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    const matches = text.match(urlRegex);
+    return matches ? matches[0] : null;
+  };
+
+  const handleJobUrlChange = (value: string) => {
+    // Try to extract URL if the pasted text contains extra content
+    const extractedUrl = extractUrlFromText(value);
+    if (extractedUrl && value !== extractedUrl) {
+      setJobUrl(extractedUrl);
+      toast.success("URL extracted from pasted text!");
+    } else {
+      setJobUrl(value);
+    }
+  };
+
   const fetchJobFromUrl = async () => {
     if (!jobUrl.trim()) return;
+    
+    // Validate it's a proper URL
+    const urlToFetch = extractUrlFromText(jobUrl);
+    if (!urlToFetch) {
+      toast.error("Please enter a valid job posting URL");
+      return;
+    }
     
     setIsFetchingJD(true);
     try {
       const { data, error } = await supabase.functions.invoke('fetch-job-description', {
-        body: { url: jobUrl }
+        body: { url: urlToFetch }
       });
       
       if (error) throw error;
@@ -358,10 +383,10 @@ const LandingPage: React.FC = () => {
               ) : (
                 <div className="space-y-3">
                   <Input
-                    type="url"
-                    placeholder="https://linkedin.com/jobs/... or any job posting URL"
+                    type="text"
+                    placeholder="Paste LinkedIn job link or any job posting URL"
                     value={jobUrl}
-                    onChange={(e) => setJobUrl(e.target.value)}
+                    onChange={(e) => handleJobUrlChange(e.target.value)}
                     className="rounded-xl"
                   />
                   <Button
