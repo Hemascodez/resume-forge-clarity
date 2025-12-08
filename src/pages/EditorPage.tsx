@@ -31,6 +31,8 @@ interface LocationState {
       bullets: string[];
     }[];
     rawText?: string;
+    name?: string;
+    title?: string;
   };
   gapsIdentified?: string[];
   confirmedSkills?: string[];
@@ -151,7 +153,7 @@ const EditorPage: React.FC = () => {
     
     try {
       // Download modified resume (preserves original format)
-      await downloadModifiedResume(modifications, fallbackResume.name);
+      await downloadModifiedResume(modifications, locationState?.resume?.name || 'Resume');
       toast.success("Resume downloaded successfully!");
     } catch (error) {
       console.error("Error downloading resume:", error);
@@ -221,8 +223,8 @@ const EditorPage: React.FC = () => {
         onOpenChange={setShowPreviewModal}
         onDownload={handleDownload}
         resumeData={{
-          name: fallbackResume.name,
-          title: fallbackResume.title,
+          name: locationState?.resume?.name || 'Your Name',
+          title: locationState?.resume?.title || 'Professional',
           skills: resumeData.skills,
           experience,
         }}
@@ -261,7 +263,7 @@ const EditorPage: React.FC = () => {
             </TabsContent>
             <TabsContent value="resume" className="flex-1 p-4 overflow-y-auto">
               <ResumePanel 
-                resume={{ ...fallbackResume, skills: resumeData.skills }}
+                resume={{ name: locationState?.resume?.name || 'Your Name', title: locationState?.resume?.title || 'Professional', skills: resumeData.skills }}
                 experience={experience} 
                 onUpdateExperience={handleUpdateExperience}
                 jdSkills={jd.skills}
@@ -283,7 +285,7 @@ const EditorPage: React.FC = () => {
 
           <div className="col-span-5 p-4 overflow-y-auto bg-background">
             <ResumePanel 
-              resume={{ ...fallbackResume, skills: resumeData.skills }}
+              resume={{ name: locationState?.resume?.name || 'Your Name', title: locationState?.resume?.title || 'Professional', skills: resumeData.skills }}
               experience={experience} 
               onUpdateExperience={handleUpdateExperience}
               jdSkills={jd.skills}

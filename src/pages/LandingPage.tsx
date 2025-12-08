@@ -73,6 +73,8 @@ const parseResume = async (file: File): Promise<{
   skills: string[];
   experience: { title: string; company: string; bullets: string[] }[];
   rawText: string;
+  name: string;
+  title: string;
 }> => {
   // For PDF and DOCX files, use the edge function
   if (file.type === 'application/pdf' || file.name.endsWith('.pdf') || 
@@ -103,6 +105,8 @@ const parseResume = async (file: File): Promise<{
       skills: data.skills || [],
       experience: data.experience || [],
       rawText: data.text || '',
+      name: data.name || 'Your Name',
+      title: data.title || 'Professional',
     };
   }
   
@@ -111,6 +115,26 @@ const parseResume = async (file: File): Promise<{
   
   const skills: string[] = [];
   const experience: { title: string; company: string; bullets: string[] }[] = [];
+  let candidateName = '';
+  let candidateTitle = '';
+  
+  // Extract name from first few lines
+  const lines = text.split('\n').filter(l => l.trim());
+  for (let i = 0; i < Math.min(lines.length, 5); i++) {
+    const line = lines[i].trim();
+    const nameMatch = line.match(/^([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){1,3})$/);
+    if (nameMatch && !candidateName) {
+      candidateName = nameMatch[1];
+      continue;
+    }
+    const titleKeywords = ['developer', 'designer', 'engineer', 'manager', 'lead', 'director', 'analyst', 'consultant', 'specialist', 'architect'];
+    if (!candidateTitle && line.length > 5 && line.length < 60) {
+      const lowerLine = line.toLowerCase();
+      if (titleKeywords.some(k => lowerLine.includes(k))) {
+        candidateTitle = line;
+      }
+    }
+  }
   
   // Extract skills
   const techKeywords = text.match(/\b(React|Angular|Vue|Node\.?js|Python|Java|JavaScript|TypeScript|SQL|PostgreSQL|MongoDB|AWS|Azure|GCP|Docker|Kubernetes|GraphQL|REST|API|Git|CI\/CD|Agile|Scrum|Machine Learning|AI|Data Science|Redux|Next\.?js|Express|Django|Flask|Spring|Ruby|Rails|PHP|Laravel|Swift|Kotlin|Flutter|React Native|HTML|CSS|SASS|Tailwind|Bootstrap|Figma|Sketch|UI\/UX|DevOps|Linux|Terraform|Jenkins|Ansible|Product Design|User Research|Prototyping|Wireframing|Design Systems|Adobe XD|Framer)\b/gi);
@@ -119,7 +143,6 @@ const parseResume = async (file: File): Promise<{
   }
   
   // Extract experience bullets
-  const lines = text.split('\n').filter(l => l.trim());
   const bullets: string[] = [];
   
   for (const line of lines) {
@@ -131,7 +154,7 @@ const parseResume = async (file: File): Promise<{
   
   if (bullets.length > 0 || skills.length > 0) {
     experience.push({
-      title: 'Professional Experience',
+      title: candidateTitle || 'Professional Experience',
       company: 'Various',
       bullets: bullets.slice(0, 10),
     });
@@ -141,6 +164,8 @@ const parseResume = async (file: File): Promise<{
     skills,
     experience,
     rawText: text.slice(0, 50000),
+    name: candidateName || 'Your Name',
+    title: candidateTitle || 'Professional',
   };
 };
 

@@ -128,6 +128,43 @@ serve(async (req) => {
     // Parse the extracted text to find resume components
     const skills: string[] = [];
     const experience: { title: string; company: string; bullets: string[] }[] = [];
+    let candidateName = '';
+    let candidateTitle = '';
+    
+    // Extract name - usually at the beginning of the resume
+    // Look for a name pattern (2-4 capitalized words at the start)
+    const lines = text.split('\n').filter(l => l.trim());
+    for (let i = 0; i < Math.min(lines.length, 5); i++) {
+      const line = lines[i].trim();
+      // Name is usually 2-4 words, all capitalized or title case, no numbers
+      const nameMatch = line.match(/^([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){1,3})$/);
+      if (nameMatch && !candidateName) {
+        candidateName = nameMatch[1];
+        continue;
+      }
+      // Title often follows the name - look for job-related words
+      const titleKeywords = ['developer', 'designer', 'engineer', 'manager', 'lead', 'director', 'analyst', 'consultant', 'specialist', 'architect', 'coordinator', 'product', 'senior', 'junior', 'associate'];
+      if (!candidateTitle && line.length > 5 && line.length < 60) {
+        const lowerLine = line.toLowerCase();
+        if (titleKeywords.some(k => lowerLine.includes(k))) {
+          candidateTitle = line;
+        }
+      }
+    }
+    
+    // If no name found via pattern, try first non-empty short line
+    if (!candidateName && lines.length > 0) {
+      for (const line of lines.slice(0, 3)) {
+        const trimmed = line.trim();
+        if (trimmed.length > 3 && trimmed.length < 50 && !trimmed.includes('@') && !trimmed.includes('http')) {
+          // Check if it looks like a name (no special characters except spaces)
+          if (/^[A-Za-z\s'-]+$/.test(trimmed)) {
+            candidateName = trimmed;
+            break;
+          }
+        }
+      }
+    }
     
     // Extract skills
     const skillPatterns = [
@@ -155,7 +192,6 @@ serve(async (req) => {
     const uniqueSkills = [...new Set(skills)];
     
     // Extract experience bullets
-    const lines = text.split('\n').filter(l => l.trim());
     const bullets: string[] = [];
     
     for (const line of lines) {
@@ -173,7 +209,7 @@ serve(async (req) => {
     
     if (bullets.length > 0) {
       experience.push({
-        title: 'Professional Experience',
+        title: candidateTitle || 'Professional Experience',
         company: 'Various',
         bullets: bullets.slice(0, 10),
       });
@@ -181,9 +217,11 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      text: text.slice(0, 50000), // Limit text size
+      text: text.slice(0, 50000),
       skills: uniqueSkills.slice(0, 30),
       experience,
+      name: candidateName || 'Your Name',
+      title: candidateTitle || 'Professional',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
