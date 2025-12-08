@@ -234,9 +234,9 @@ const EditorPage: React.FC = () => {
             </>
           )}
           
-          <JoystickButton variant="accent" size="md" onClick={() => setShowTemplateSelector(true)}>
-            <Download className="w-4 h-4 mr-2" />
-            <span className="font-semibold text-sm">Download</span>
+          <JoystickButton variant="accent" size="sm" onClick={() => setShowTemplateSelector(true)}>
+            <Download className="w-4 h-4 md:mr-2" />
+            <span className="font-semibold text-xs hidden md:inline">Download</span>
           </JoystickButton>
         </div>
       </header>
