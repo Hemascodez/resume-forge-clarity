@@ -6,9 +6,12 @@ import { ATSScoreComparison, ChangesSummary } from "@/components/ATSScoreCompari
 import { EditableExperienceItem } from "@/components/EditableExperienceItem";
 import { JoystickButton, DialKnob } from "@/components/JoystickButton";
 import { ControllerCard, TriggerProgress, JoystickController, MiniJoystick } from "@/components/JoystickElements";
-import { ArrowLeft, Download, FileText, Briefcase, Zap } from "lucide-react";
+import { ArrowLeft, Download, FileText, Briefcase, Zap, LogOut } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { AuthModal } from "@/components/AuthModal";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const mockJD = {
   title: "Senior Frontend Engineer",
@@ -54,7 +57,9 @@ const mockResume = {
 
 const EditorPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [experience, setExperience] = useState(initialExperience);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   
   const oldScore = 58;
   const newScore = 92;
@@ -65,6 +70,20 @@ const EditorPage: React.FC = () => {
     setExperience(prev => prev.map((item, i) => 
       i === index ? { ...item, text: newText } : item
     ));
+  };
+
+  const handleDownload = () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    // TODO: Implement actual download logic
+    toast.success("Resume downloaded successfully!");
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("Signed out successfully");
   };
 
   return (
@@ -99,12 +118,21 @@ const EditorPage: React.FC = () => {
             <DialKnob rotation={newScore * 3.6} size="sm" />
           </div>
           <ATSScoreComparison oldScore={oldScore} newScore={newScore} />
-          <JoystickButton variant="accent" size="md" onClick={() => {}}>
+          
+          {user && (
+            <JoystickButton variant="neutral" size="sm" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4" />
+            </JoystickButton>
+          )}
+          
+          <JoystickButton variant="accent" size="md" onClick={handleDownload}>
             <Download className="w-4 h-4 mr-2" />
             <span className="font-semibold text-sm">Download Resume</span>
           </JoystickButton>
         </div>
       </header>
+
+      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
 
       {/* Main Content */}
       <main className="relative z-10 flex-1 overflow-hidden">

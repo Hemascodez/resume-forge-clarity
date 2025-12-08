@@ -1,34 +1,28 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BackgroundBlobs } from "@/components/BackgroundBlobs";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Zap } from "lucide-react";
-import { JoystickButton } from "@/components/JoystickButton";
+import { Loader2 } from "lucide-react";
 
-export default function AuthPage() {
-  const navigate = useNavigate();
+interface AuthModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
+}
+
+export const AuthModal: React.FC<AuthModalProps> = ({
+  open,
+  onOpenChange,
+  onSuccess,
+}) => {
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate("/");
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (session) {
-          navigate("/");
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
@@ -36,7 +30,7 @@ export default function AuthPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/editor`,
         },
       });
 
@@ -51,23 +45,19 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4 bg-background">
-      <BackgroundBlobs variant="landing" />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-center text-xl font-bold">
+            Sign in to Download
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            Create a free account to download your tailored resume and save your
+            work for later.
+          </DialogDescription>
+        </DialogHeader>
 
-      <Card className="relative z-10 w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm">
-        <CardHeader className="text-center space-y-4">
-          <div className="flex justify-center">
-            <JoystickButton variant="primary" size="lg">
-              <Zap className="w-6 h-6" />
-            </JoystickButton>
-          </div>
-          <CardTitle className="text-2xl font-bold">Welcome to ResumeAI</CardTitle>
-          <CardDescription>
-            Sign in to save your tailored resumes and access them anytime
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
+        <div className="flex flex-col gap-4 py-4">
           <Button
             variant="outline"
             size="lg"
@@ -103,8 +93,8 @@ export default function AuthPage() {
           <p className="text-xs text-center text-muted-foreground">
             By signing in, you agree to our Terms of Service and Privacy Policy
           </p>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
-}
+};
