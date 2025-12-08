@@ -19,9 +19,9 @@ export const JoystickButton: React.FC<JoystickButtonProps> = ({
   disabled = false
 }) => {
   const sizeClasses = {
-    sm: "w-10 h-10 text-xs",
-    md: "w-14 h-14 text-sm",
-    lg: "w-20 h-20 text-base"
+    sm: "min-w-10 h-10 text-xs",
+    md: "min-w-14 h-14 px-4 text-sm",
+    lg: "min-w-20 h-20 px-6 text-base"
   };
 
   const variantStyles = {
