@@ -40,6 +40,18 @@ serve(async (req) => {
     const html = await response.text();
     console.log('Fetched HTML length:', html.length);
 
+    // Check for common login/block indicators
+    const lowerHtml = html.toLowerCase();
+    const isBlocked = lowerHtml.includes('sign in') && lowerHtml.includes('linkedin') && !lowerHtml.includes('job-description');
+    
+    if (isBlocked) {
+      console.log('Detected login wall or blocked content');
+      return new Response(
+        JSON.stringify({ error: 'This job posting requires login to view. Please paste the job description text directly instead of using the URL.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     
     if (!GEMINI_API_KEY) {
@@ -70,7 +82,7 @@ Extract and return ONLY the job posting content including:
 - Any other relevant job details
 
 Format the output as clean, readable text (not HTML). Remove any navigation, ads, or unrelated content.
-If you cannot find a job description, return an empty string.
+If the page appears to be a login page, access denied page, or you cannot find a job description, return exactly: NO_JOB_FOUND
 
 Extract the job description from this HTML:
 
@@ -96,10 +108,11 @@ ${html.slice(0, 50000)}`
     const jobDescription = aiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
 
     console.log('Extracted job description length:', jobDescription.length);
+    console.log('Job description preview:', jobDescription.slice(0, 200));
 
-    if (!jobDescription || jobDescription.length < 50) {
+    if (!jobDescription || jobDescription.length < 50 || jobDescription.includes('NO_JOB_FOUND')) {
       return new Response(
-        JSON.stringify({ error: 'Could not extract job description from this URL' }),
+        JSON.stringify({ error: 'Could not extract job description from this URL. The page may require login or the job posting may have expired. Please paste the job description text directly.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
