@@ -5,16 +5,14 @@ import { ATSScoreComparison, ChangesSummary } from "@/components/ATSScoreCompari
 import { EditableExperienceItem } from "@/components/EditableExperienceItem";
 import { JoystickButton, DialKnob } from "@/components/JoystickButton";
 import { ControllerCard, TriggerProgress, JoystickController, MiniJoystick } from "@/components/JoystickElements";
-import { ArrowLeft, Download, FileText, Briefcase, Zap, LogOut, Loader2, LayoutDashboard, Eye } from "lucide-react";
+import { ArrowLeft, Download, FileText, Briefcase, Zap, Loader2, Eye } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { downloadModifiedResume, ResumeModifications } from "@/lib/resumeEditor";
-import { AuthModal } from "@/components/AuthModal";
 import { ResumePreviewModal } from "@/components/ResumePreviewModal";
-import { useAuth } from "@/hooks/useAuth";
 import { useATSScore } from "@/hooks/useATSScore";
-import { useResumeSession } from "@/hooks/useResumeSession";
 import { toast } from "sonner";
+
 interface LocationState {
   sessionId?: string;
   jobDescription?: {
@@ -74,12 +72,8 @@ const EditorPage: React.FC = () => {
   const location = useLocation();
   const locationState = location.state as LocationState | null;
   
-  const { user, signOut } = useAuth();
   const { calculateScore, isCalculating, oldScore, newScore, missingSkills, matchedSkills } = useATSScore();
-  const { updateSession } = useResumeSession();
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const sessionId = locationState?.sessionId;
   
   // Use data from interrogation flow or fallback
   const jd = locationState?.jobDescription ? {
@@ -122,17 +116,6 @@ const EditorPage: React.FC = () => {
     }
   }, []);
 
-  // Save ATS scores to session when calculated
-  useEffect(() => {
-    if (sessionId && user && oldScore && newScore) {
-      updateSession(sessionId, {
-        oldAtsScore: oldScore,
-        newAtsScore: newScore,
-        status: "completed",
-      });
-    }
-  }, [oldScore, newScore, sessionId, user]);
-
   const handleUpdateExperience = (index: number, newText: string) => {
     const updated = experience.map((item, i) => 
       i === index ? { ...item, text: newText, isModified: true } : item
@@ -154,19 +137,6 @@ const EditorPage: React.FC = () => {
   const originalExperience = locationState?.resume?.experience?.[0]?.bullets || [];
   
   const handleDownload = async () => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-    
-    // Save final state to session before download
-    if (sessionId) {
-      updateSession(sessionId, {
-        tailoredResume: { experience, skills: resumeData.skills },
-        status: "completed",
-      });
-    }
-    
     // Build modifications object
     const modifications: ResumeModifications = {
       originalSkills: locationState?.resume?.skills || [],
@@ -187,11 +157,6 @@ const EditorPage: React.FC = () => {
       console.error("Error downloading resume:", error);
       toast.error("Error downloading resume. Please try again.");
     }
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    toast.success("Signed out successfully");
   };
 
   const displayOldScore = oldScore || 45;
@@ -225,12 +190,6 @@ const EditorPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {user && (
-            <JoystickButton variant="neutral" size="sm" onClick={() => navigate("/dashboard")}>
-              <LayoutDashboard className="w-4 h-4" />
-            </JoystickButton>
-          )}
-          
           {isCalculating ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -245,12 +204,6 @@ const EditorPage: React.FC = () => {
             </>
           )}
           
-          {user && (
-            <JoystickButton variant="neutral" size="sm" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4" />
-            </JoystickButton>
-          )}
-          
           <JoystickButton variant="neutral" size="md" onClick={() => setShowPreviewModal(true)}>
             <Eye className="w-4 h-4 mr-2" />
             <span className="font-semibold text-sm hidden md:inline">Preview</span>
@@ -262,8 +215,6 @@ const EditorPage: React.FC = () => {
           </JoystickButton>
         </div>
       </header>
-
-      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
       
       <ResumePreviewModal
         open={showPreviewModal}
