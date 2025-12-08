@@ -8,8 +8,8 @@ import { ControllerCard, TriggerProgress, JoystickController, MiniJoystick } fro
 import { ArrowLeft, Download, FileText, Briefcase, Zap, Loader2, Eye } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { downloadModifiedResume, ResumeModifications } from "@/lib/resumeEditor";
-import { ResumePreviewModal } from "@/components/ResumePreviewModal";
+import { downloadTemplateResume, ResumeModifications, ResumeData, TemplateType } from "@/lib/resumeEditor";
+import { ResumeTemplateSelector } from "@/components/ResumeTemplateSelector";
 import { useATSScore } from "@/hooks/useATSScore";
 import { toast } from "sonner";
 
@@ -75,7 +75,6 @@ const EditorPage: React.FC = () => {
   const locationState = location.state as LocationState | null;
   
   const { calculateScore, isCalculating, oldScore, newScore, missingSkills, matchedSkills } = useATSScore();
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   
   // Use data from interrogation flow or fallback
   const jd = locationState?.jobDescription ? {
@@ -159,9 +158,9 @@ const EditorPage: React.FC = () => {
 
   // Track original experience for modifications
   const originalExperience = locationState?.resume?.experience?.[0]?.bullets || [];
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   
-  const handleDownload = async () => {
-    // Build modifications object
+  const handleDownloadWithTemplate = async (template: TemplateType) => {
     const modifications: ResumeModifications = {
       originalSkills: locationState?.resume?.skills || [],
       confirmedSkills: confirmedSkills,
@@ -172,10 +171,17 @@ const EditorPage: React.FC = () => {
       jobTitle: jd.title,
       company: jd.company,
     };
+
+    const resumeDataForDownload: ResumeData = {
+      name: locationState?.resume?.name || 'Your Name',
+      title: locationState?.resume?.title || 'Professional',
+      skills: resumeData.skills,
+      experience,
+      originalExperience: locationState?.resume?.experience,
+    };
     
     try {
-      // Download modified resume (preserves original format)
-      await downloadModifiedResume(modifications, locationState?.resume?.name || 'Resume');
+      await downloadTemplateResume(template, resumeDataForDownload, modifications);
       toast.success("Resume downloaded successfully!");
     } catch (error) {
       console.error("Error downloading resume:", error);
@@ -228,22 +234,17 @@ const EditorPage: React.FC = () => {
             </>
           )}
           
-          <JoystickButton variant="neutral" size="md" onClick={() => setShowPreviewModal(true)}>
-            <Eye className="w-4 h-4 mr-2" />
-            <span className="font-semibold text-sm hidden md:inline">Preview</span>
-          </JoystickButton>
-          
-          <JoystickButton variant="accent" size="md" onClick={handleDownload}>
+          <JoystickButton variant="accent" size="md" onClick={() => setShowTemplateSelector(true)}>
             <Download className="w-4 h-4 mr-2" />
             <span className="font-semibold text-sm">Download</span>
           </JoystickButton>
         </div>
       </header>
       
-      <ResumePreviewModal
-        open={showPreviewModal}
-        onOpenChange={setShowPreviewModal}
-        onDownload={handleDownload}
+      <ResumeTemplateSelector
+        open={showTemplateSelector}
+        onOpenChange={setShowTemplateSelector}
+        onSelectTemplate={handleDownloadWithTemplate}
         resumeData={{
           name: locationState?.resume?.name || 'Your Name',
           title: locationState?.resume?.title || 'Professional',
