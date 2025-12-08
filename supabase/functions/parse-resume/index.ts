@@ -23,10 +23,18 @@ serve(async (req) => {
 
     console.log('Parsing file:', file.name, 'type:', file.type, 'size:', file.size);
 
-    // Convert file to base64 for AI processing
+    // Convert file to base64 for AI processing (chunked to avoid stack overflow)
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
-    const base64 = btoa(String.fromCharCode(...bytes));
+    
+    // Chunk the conversion to avoid stack overflow on large files
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    const base64 = btoa(binary);
 
     // Use Lovable AI to parse the resume
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
