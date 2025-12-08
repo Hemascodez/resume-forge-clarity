@@ -7,6 +7,8 @@ import { JoystickButton } from "@/components/JoystickButton";
 import { TriggerProgress, ControllerCard, MiniJoystick, JoystickController } from "@/components/JoystickElements";
 import { Send, ArrowLeft, Zap, Check, X, Edit3 } from "lucide-react";
 import { useInterrogation } from "@/hooks/useInterrogation";
+import { useResumeSession } from "@/hooks/useResumeSession";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 interface LocationState {
@@ -35,8 +37,11 @@ const InterrogationPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState("");
   const [hasStarted, setHasStarted] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   const locationState = location.state as LocationState | null;
+  const { user } = useAuth();
+  const { createSession, updateSession } = useResumeSession();
 
   const {
     messages,
@@ -50,21 +55,50 @@ const InterrogationPage: React.FC = () => {
     reset,
   } = useInterrogation();
 
-  // Start interrogation when page loads with data
+  // Start interrogation and create session when page loads with data
   useEffect(() => {
     if (locationState && !hasStarted) {
       setHasStarted(true);
       startInterrogation(locationState.jobDescription, locationState.resume);
+      
+      // Create session if user is logged in
+      if (user) {
+        createSession({
+          originalResumeText: locationState.resume.rawText,
+          jobDescriptionText: locationState.jobDescription.rawText,
+          jdTitle: locationState.jobDescription.title,
+          jdCompany: locationState.jobDescription.company,
+          jdSkills: locationState.jobDescription.skills,
+          jdRequirements: locationState.jobDescription.requirements,
+          jdResponsibilities: locationState.jobDescription.responsibilities,
+          resumeSkills: locationState.resume.skills,
+          resumeExperience: locationState.resume.experience,
+          status: "in_progress",
+        }).then(id => {
+          if (id) setCurrentSessionId(id);
+        });
+      }
     } else if (!locationState && !hasStarted) {
       toast.error("No data found. Please start from the beginning.");
       navigate("/");
     }
-  }, [locationState, hasStarted, startInterrogation, navigate]);
+  }, [locationState, hasStarted, startInterrogation, navigate, user]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // Update session when messages change
+  useEffect(() => {
+    if (currentSessionId && messages.length > 0 && user) {
+      updateSession(currentSessionId, {
+        conversationHistory: messages,
+        gapsIdentified,
+        confirmedSkills,
+      });
+    }
+  }, [messages, gapsIdentified, confirmedSkills, currentSessionId, user]);
 
   // Navigate to editor when complete
   useEffect(() => {
@@ -73,6 +107,7 @@ const InterrogationPage: React.FC = () => {
       setTimeout(() => {
         navigate("/editor", {
           state: {
+            sessionId: currentSessionId,
             jobDescription: locationState?.jobDescription,
             resume: locationState?.resume,
             gapsIdentified,
@@ -82,7 +117,7 @@ const InterrogationPage: React.FC = () => {
         });
       }, 2000);
     }
-  }, [isComplete, summary, navigate, locationState, gapsIdentified, confirmedSkills]);
+  }, [isComplete, summary, navigate, locationState, gapsIdentified, confirmedSkills, currentSessionId]);
 
   const handleQuickReply = (response: "yes" | "no" | "edit") => {
     if (!locationState) return;

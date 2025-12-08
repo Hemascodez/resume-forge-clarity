@@ -187,10 +187,11 @@ const LandingPage: React.FC = () => {
           <span className="text-2xl font-bold text-foreground">ResumeAI</span>
         </div>
         
-        {/* Decorative controls */}
-        <div className="hidden md:flex items-center gap-4">
-          <MiniJoystick variant="accent" />
-          <DialKnob rotation={45} size="sm" />
+        {/* Dashboard link */}
+        <div className="flex items-center gap-4">
+          <JoystickButton variant="accent" size="md" onClick={() => navigate("/dashboard")}>
+            <span className="text-sm font-semibold">My Resumes</span>
+          </JoystickButton>
         </div>
       </header>
 
