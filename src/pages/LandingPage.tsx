@@ -9,6 +9,7 @@ import { JoystickController, MiniJoystick, ControllerCard } from "@/components/J
 import { Sparkles, Zap, Shield, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { storeOriginalFile } from "@/lib/resumeEditor";
+import { supabase } from "@/integrations/supabase/client";
 
 // Simple JD parser - extracts structured data from job description text
 const parseJobDescription = (text: string) => {
@@ -67,71 +68,79 @@ const parseJobDescription = (text: string) => {
   };
 };
 
-// Simple resume parser - extracts basic structure from resume text
+// Resume parser - uses edge function for PDF/DOCX, falls back to text parsing
 const parseResume = async (file: File): Promise<{
   skills: string[];
   experience: { title: string; company: string; bullets: string[] }[];
   rawText: string;
 }> => {
+  // For PDF and DOCX files, use the edge function
+  if (file.type === 'application/pdf' || file.name.endsWith('.pdf') || 
+      file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-resume`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: formData,
+      }
+    );
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to parse resume');
+    }
+    
+    const data = await response.json();
+    
+    return {
+      skills: data.skills || [],
+      experience: data.experience || [],
+      rawText: data.text || '',
+    };
+  }
+  
+  // For text files, parse directly
   const text = await file.text();
   
   const skills: string[] = [];
   const experience: { title: string; company: string; bullets: string[] }[] = [];
   
-  // Extract skills section
-  const skillsMatch = text.match(/(?:skills|technologies|tech stack|technical skills)[\s:]*([^]*?)(?:experience|education|projects|$)/i);
-  if (skillsMatch) {
-    const skillsText = skillsMatch[1];
-    const extractedSkills = skillsText.match(/\b(React|Angular|Vue|Node\.?js|Python|Java|JavaScript|TypeScript|SQL|PostgreSQL|MongoDB|AWS|Azure|GCP|Docker|Kubernetes|GraphQL|REST|API|Git|CI\/CD|Agile|Scrum|Machine Learning|AI|Data Science|Redux|Next\.?js|Express|Django|Flask|Spring|Ruby|Rails|PHP|Laravel|Swift|Kotlin|Flutter|React Native|HTML|CSS|SASS|Tailwind|Bootstrap|Figma|Sketch|UI\/UX|DevOps|Linux|Terraform|Jenkins|Ansible)\b/gi);
-    if (extractedSkills) {
-      skills.push(...[...new Set(extractedSkills.map(s => s.toLowerCase()))]);
+  // Extract skills
+  const techKeywords = text.match(/\b(React|Angular|Vue|Node\.?js|Python|Java|JavaScript|TypeScript|SQL|PostgreSQL|MongoDB|AWS|Azure|GCP|Docker|Kubernetes|GraphQL|REST|API|Git|CI\/CD|Agile|Scrum|Machine Learning|AI|Data Science|Redux|Next\.?js|Express|Django|Flask|Spring|Ruby|Rails|PHP|Laravel|Swift|Kotlin|Flutter|React Native|HTML|CSS|SASS|Tailwind|Bootstrap|Figma|Sketch|UI\/UX|DevOps|Linux|Terraform|Jenkins|Ansible|Product Design|User Research|Prototyping|Wireframing|Design Systems|Adobe XD|Framer)\b/gi);
+  if (techKeywords) {
+    skills.push(...[...new Set(techKeywords.map(s => s.toLowerCase()))]);
+  }
+  
+  // Extract experience bullets
+  const lines = text.split('\n').filter(l => l.trim());
+  const bullets: string[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if ((trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.startsWith('*')) && trimmed.length > 20) {
+      bullets.push(trimmed.replace(/^[-•*]\s*/, '').slice(0, 500));
     }
   }
   
-  // Extract experience entries (simplified)
-  const experienceSection = text.match(/(?:experience|work history|employment)[\s:]*([^]*?)(?:education|skills|projects|$)/i);
-  if (experienceSection) {
-    const lines = experienceSection[1].split('\n').filter(l => l.trim());
-    let currentExp: { title: string; company: string; bullets: string[] } | null = null;
-    
-    lines.forEach(line => {
-      const cleanLine = line.trim();
-      // Check if this looks like a job title line
-      if (cleanLine.match(/(?:engineer|developer|manager|analyst|designer|lead|senior|junior|intern)/i) && !cleanLine.startsWith('-') && !cleanLine.startsWith('•')) {
-        if (currentExp) {
-          experience.push(currentExp);
-        }
-        currentExp = {
-          title: cleanLine.split(/[|@–-]/)[0]?.trim() || cleanLine,
-          company: cleanLine.split(/[|@–-]/)[1]?.trim() || 'Company',
-          bullets: [],
-        };
-      } else if (currentExp && (cleanLine.startsWith('-') || cleanLine.startsWith('•') || cleanLine.startsWith('*'))) {
-        currentExp.bullets.push(cleanLine.replace(/^[-•*]\s*/, ''));
-      }
-    });
-    
-    if (currentExp) {
-      experience.push(currentExp);
-    }
-  }
-  
-  // If no structured experience found, create a placeholder
-  if (experience.length === 0) {
+  if (bullets.length > 0 || skills.length > 0) {
     experience.push({
       title: 'Professional Experience',
       company: 'Various',
-      bullets: text.split('\n')
-        .filter(l => l.trim().startsWith('-') || l.trim().startsWith('•'))
-        .slice(0, 5)
-        .map(l => l.replace(/^[-•*]\s*/, '').trim()),
+      bullets: bullets.slice(0, 10),
     });
   }
   
   return {
     skills,
     experience,
-    rawText: text,
+    rawText: text.slice(0, 50000),
   };
 };
 
