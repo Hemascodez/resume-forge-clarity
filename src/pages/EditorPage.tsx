@@ -5,11 +5,12 @@ import { ATSScoreComparison, ChangesSummary } from "@/components/ATSScoreCompari
 import { EditableExperienceItem } from "@/components/EditableExperienceItem";
 import { JoystickButton, DialKnob } from "@/components/JoystickButton";
 import { ControllerCard, TriggerProgress, JoystickController, MiniJoystick } from "@/components/JoystickElements";
-import { ArrowLeft, Download, FileText, Briefcase, Zap, LogOut, Loader2, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, Download, FileText, Briefcase, Zap, LogOut, Loader2, LayoutDashboard, Eye } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { downloadModifiedResume, ResumeModifications } from "@/lib/resumeEditor";
 import { AuthModal } from "@/components/AuthModal";
+import { ResumePreviewModal } from "@/components/ResumePreviewModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useATSScore } from "@/hooks/useATSScore";
 import { useResumeSession } from "@/hooks/useResumeSession";
@@ -77,6 +78,7 @@ const EditorPage: React.FC = () => {
   const { calculateScore, isCalculating, oldScore, newScore, missingSkills, matchedSkills } = useATSScore();
   const { updateSession } = useResumeSession();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const sessionId = locationState?.sessionId;
   
   // Use data from interrogation flow or fallback
@@ -249,14 +251,35 @@ const EditorPage: React.FC = () => {
             </JoystickButton>
           )}
           
+          <JoystickButton variant="neutral" size="md" onClick={() => setShowPreviewModal(true)}>
+            <Eye className="w-4 h-4 mr-2" />
+            <span className="font-semibold text-sm hidden md:inline">Preview</span>
+          </JoystickButton>
+          
           <JoystickButton variant="accent" size="md" onClick={handleDownload}>
             <Download className="w-4 h-4 mr-2" />
-            <span className="font-semibold text-sm">Download Resume</span>
+            <span className="font-semibold text-sm">Download</span>
           </JoystickButton>
         </div>
       </header>
 
       <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
+      
+      <ResumePreviewModal
+        open={showPreviewModal}
+        onOpenChange={setShowPreviewModal}
+        onDownload={handleDownload}
+        resumeData={{
+          name: fallbackResume.name,
+          title: fallbackResume.title,
+          skills: resumeData.skills,
+          experience,
+        }}
+        jobTitle={jd.title}
+        company={jd.company}
+        confirmedSkills={confirmedSkills}
+        originalSkills={locationState?.resume?.skills || []}
+      />
 
       <main className="relative z-10 flex-1 overflow-hidden">
         <div className="md:hidden h-full">
