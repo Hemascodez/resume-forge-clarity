@@ -1,9 +1,62 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+async function callLovableAIWithFile(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  
+  if (!LOVABLE_API_KEY) {
+    throw new Error('LOVABLE_API_KEY is not configured');
+  }
+
+  // For file parsing, we need to use Gemini with inline data
+  // Lovable AI gateway supports this via the messages content array
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${base64Data}`
+              }
+            }
+          ]
+        }
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Lovable AI error:', response.status, errorText);
+    
+    if (response.status === 429) {
+      throw new Error('RATE_LIMIT');
+    }
+    if (response.status === 402) {
+      throw new Error('PAYMENT_REQUIRED');
+    }
+    
+    throw new Error(`Lovable AI error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -36,33 +89,12 @@ serve(async (req) => {
     }
     const base64 = btoa(binary);
 
-    // Use Gemini AI to parse the resume
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-    
-    if (!GEMINI_API_KEY) {
-      console.error('GEMINI_API_KEY not configured');
-      return new Response(JSON.stringify({ error: 'AI API key not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    console.log('Sending resume to Gemini AI for parsing...');
+    console.log('Sending resume to Lovable AI for parsing...');
 
     // Determine mime type
     const mimeType = file.type || 'application/pdf';
 
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `You are a resume parser. Extract structured information from this resume.
+    const prompt = `You are a resume parser. Extract structured information from this resume.
             
 ALWAYS respond with a valid JSON object with these exact fields:
 {
@@ -94,41 +126,10 @@ Be thorough in extracting ALL skills, experience items, and achievements.
 If information is not available, use empty strings or empty arrays.
 ONLY respond with the JSON object, no other text.
 
-Parse this resume (${file.name}) and extract all information. The file is a ${file.type} document.`
-              },
-              {
-                inlineData: {
-                  mimeType: mimeType,
-                  data: base64
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 4096,
-        }
-      }),
-    });
+Parse this resume (${file.name}) and extract all information. The file is a ${file.type} document.`;
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('Gemini AI error:', aiResponse.status, errorText);
-      
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      throw new Error(`AI parsing failed: ${aiResponse.status}`);
-    }
+    const content = await callLovableAIWithFile(prompt, base64, mimeType);
 
-    const aiData = await aiResponse.json();
-    const content = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
     console.log('AI response received, length:', content.length);
     console.log('AI response preview:', content.substring(0, 500));
 
@@ -189,9 +190,24 @@ Parse this resume (${file.name}) and extract all information. The file is a ${fi
 
   } catch (error) {
     console.error('Error parsing resume:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Failed to parse resume' 
-    }), {
+    
+    const errorMessage = error instanceof Error ? error.message : 'Failed to parse resume';
+    
+    if (errorMessage === 'RATE_LIMIT') {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    if (errorMessage === 'PAYMENT_REQUIRED') {
+      return new Response(JSON.stringify({ error: 'API credits exhausted. Please add credits to continue.' }), {
+        status: 402,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

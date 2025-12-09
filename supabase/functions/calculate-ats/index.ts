@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
@@ -45,6 +46,43 @@ interface ATSScoreResponse {
   suggestions: string[];
 }
 
+async function callLovableAI(prompt: string): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  
+  if (!LOVABLE_API_KEY) {
+    throw new Error('LOVABLE_API_KEY is not configured');
+  }
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Lovable AI error:', response.status, errorText);
+    
+    if (response.status === 429) {
+      throw new Error('RATE_LIMIT');
+    }
+    if (response.status === 402) {
+      throw new Error('PAYMENT_REQUIRED');
+    }
+    
+    throw new Error(`Lovable AI error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
 async function calculateATSWithAI(
   jobDescription: {
     title: string;
@@ -61,12 +99,6 @@ async function calculateATSWithAI(
   },
   additionalSkills: string[] = []
 ): Promise<ATSScoreResponse> {
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-  
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
-  }
-
   const allSkills = [...new Set([...resume.skills, ...additionalSkills])];
   
   const jdText = `
@@ -120,33 +152,10 @@ Be realistic and accurate:
 
 Return ONLY the JSON object, no other text.`;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        { parts: [{ text: prompt }] }
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
-      }
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Gemini API error:", response.status, errorText);
-    throw new Error(`Gemini API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const content = await callLovableAI(prompt);
   
   if (!content) {
-    throw new Error("No response from Gemini AI");
+    throw new Error("No response from Lovable AI");
   }
 
   // Parse the JSON from the response
@@ -199,7 +208,7 @@ serve(async (req) => {
     const { jobDescription, resume, confirmedSkills, tailoredExperience } = parseResult.data;
 
     // Calculate original score (without confirmed skills)
-    console.log('Calculating original ATS score with Gemini...');
+    console.log('Calculating original ATS score with Lovable AI...');
     const originalScore = await calculateATSWithAI(
       jobDescription,
       resume,
@@ -226,7 +235,7 @@ serve(async (req) => {
     }
 
     // Calculate new score with AI
-    console.log('Calculating enhanced ATS score with Gemini...');
+    console.log('Calculating enhanced ATS score with Lovable AI...');
     const newScore = await calculateATSWithAI(
       jobDescription,
       { ...resume, experience: enhancedExperience },
@@ -250,9 +259,24 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in calculate-ats function:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
-    }), {
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    if (errorMessage === 'RATE_LIMIT') {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    if (errorMessage === 'PAYMENT_REQUIRED') {
+      return new Response(JSON.stringify({ error: 'API credits exhausted. Please add credits to continue.' }), {
+        status: 402,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -35,17 +35,49 @@ const RequestSchema = z.object({
   userAnswer: z.string().max(5000, "Answer too long").nullable().optional(),
 });
 
+async function callLovableAI(messages: { role: string; content: string }[]): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  
+  if (!LOVABLE_API_KEY) {
+    throw new Error('LOVABLE_API_KEY is not configured');
+  }
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Lovable AI error:', response.status, errorText);
+    
+    if (response.status === 429) {
+      throw new Error('RATE_LIMIT');
+    }
+    if (response.status === 402) {
+      throw new Error('PAYMENT_REQUIRED');
+    }
+    
+    throw new Error(`Lovable AI error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!geminiApiKey) {
-      throw new Error('GEMINI_API_KEY is not configured');
-    }
-
     const rawBody = await req.json();
     console.log('Received request body keys:', Object.keys(rawBody));
     
@@ -78,7 +110,7 @@ serve(async (req) => {
     // Determine if this is the first message (no conversation history and no user answer)
     const isFirstMessage = conversationHistory.length === 0 && !userAnswer;
 
-    // AI-powered ATS calculation using Gemini
+    // AI-powered ATS calculation using Lovable AI
     const calculateCurrentATSWithAI = async (
       jd: typeof jobDescription, 
       res: typeof resume,
@@ -126,28 +158,11 @@ Consider: skill overlap, keyword matches, experience relevance, and job title al
 Return ONLY the number, nothing else.`;
 
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.3,
-              maxOutputTokens: 50,
-            }
-          }),
-        });
-
-        if (!response.ok) {
-          console.error("Gemini API error:", response.status);
-          return 55;
-        }
-
-        const data = await response.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        const score = parseInt(content, 10);
+        const content = await callLovableAI([
+          { role: 'user', content: prompt }
+        ]);
+        
+        const score = parseInt(content.trim(), 10);
         
         if (isNaN(score) || score < 0 || score > 100) {
           console.error("Invalid AI score response:", content);
@@ -189,13 +204,13 @@ Return ONLY the number, nothing else.`;
     const confirmedSoFar = extractConfirmedFromHistory();
     
     // Calculate ATS score using AI
-    console.log('Calculating ATS score with Gemini...');
+    console.log('Calculating ATS score with Lovable AI...');
     const currentATSScore = await calculateCurrentATSWithAI(
       jobDescription,
       resume,
       confirmedSoFar
     );
-    console.log('Gemini ATS Score:', currentATSScore);
+    console.log('Lovable AI ATS Score:', currentATSScore);
 
     const systemPrompt = `You are ResumeAI — a fast, credibility-checking, funny-but-serious resume generator.
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.
@@ -314,55 +329,32 @@ CRITICAL:
 - gapsIdentified should be skills from JD that are NOT on their resume.
 - When all gaps are addressed with complete experience details, set isComplete to true and provide summary.`;
 
-    // Build conversation for Gemini
-    let conversationText = systemPrompt + "\n\n";
+    // Build conversation for Lovable AI
+    const messages: { role: string; content: string }[] = [
+      { role: 'system', content: systemPrompt }
+    ];
     
     for (const msg of conversationHistory) {
-      conversationText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n\n`;
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      });
     }
 
     if (userAnswer) {
-      conversationText += `User: ${userAnswer}\n\n`;
+      messages.push({ role: 'user', content: userAnswer });
     } else {
-      conversationText += `User: Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.\n\n`;
+      messages.push({ 
+        role: 'user', 
+        content: 'Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.' 
+      });
     }
 
-    conversationText += "Assistant:";
+    console.log('Calling Lovable AI with message count:', messages.length);
 
-    console.log('Calling Gemini with conversation length:', conversationText.length);
+    const aiResponse = await callLovableAI(messages);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: conversationText }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    console.log('Gemini response received:', aiResponse?.substring(0, 500));
+    console.log('Lovable AI response received:', aiResponse?.substring(0, 500));
 
     let parsedResponse;
     try {
@@ -412,9 +404,24 @@ CRITICAL:
 
   } catch (error) {
     console.error('Error in interrogate function:', error);
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
-    }), {
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    if (errorMessage === 'RATE_LIMIT') {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    if (errorMessage === 'PAYMENT_REQUIRED') {
+      return new Response(JSON.stringify({ error: 'API credits exhausted. Please add credits to continue.' }), {
+        status: 402,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
