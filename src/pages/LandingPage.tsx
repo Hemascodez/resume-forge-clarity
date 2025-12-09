@@ -215,6 +215,12 @@ const LandingPage: React.FC = () => {
       
       if (error) throw error;
       
+      // Handle error response from edge function (400 status returns error in data)
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      
       if (data?.jobDescription) {
         setJobDescription(data.jobDescription);
         setInputMode("paste");
