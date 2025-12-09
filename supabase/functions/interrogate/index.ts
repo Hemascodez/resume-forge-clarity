@@ -35,41 +35,54 @@ const RequestSchema = z.object({
   userAnswer: z.string().max(5000, "Answer too long").nullable().optional(),
 });
 
-async function callLovableAI(messages: { role: string; content: string }[]): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+async function callGeminiAI(messages: { role: string; content: string }[]): Promise<string> {
+  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
   
-  if (!LOVABLE_API_KEY) {
-    throw new Error('LOVABLE_API_KEY is not configured');
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not configured');
   }
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  // Convert messages to Gemini format
+  const systemContent = messages.find(m => m.role === 'system')?.content || '';
+  const userMessages = messages.filter(m => m.role !== 'system');
+  
+  const contents = userMessages.map(msg => ({
+    role: msg.role === 'user' ? 'user' : 'model',
+    parts: [{ text: msg.content }]
+  }));
+
+  // Prepend system content to first user message if exists
+  if (systemContent && contents.length > 0) {
+    contents[0].parts[0].text = systemContent + '\n\n' + contents[0].parts[0].text;
+  }
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages,
+      contents,
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+      }
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Lovable AI error:', response.status, errorText);
+    console.error('Gemini API error:', response.status, errorText);
     
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
     }
-    if (response.status === 402) {
-      throw new Error('PAYMENT_REQUIRED');
-    }
     
-    throw new Error(`Lovable AI error: ${response.status}`);
+    throw new Error(`Gemini API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 serve(async (req) => {
@@ -110,7 +123,7 @@ serve(async (req) => {
     // Determine if this is the first message (no conversation history and no user answer)
     const isFirstMessage = conversationHistory.length === 0 && !userAnswer;
 
-    // AI-powered ATS calculation using Lovable AI
+    // AI-powered ATS calculation using Gemini
     const calculateCurrentATSWithAI = async (
       jd: typeof jobDescription, 
       res: typeof resume,
@@ -158,7 +171,7 @@ Consider: skill overlap, keyword matches, experience relevance, and job title al
 Return ONLY the number, nothing else.`;
 
       try {
-        const content = await callLovableAI([
+        const content = await callGeminiAI([
           { role: 'user', content: prompt }
         ]);
         
@@ -204,13 +217,13 @@ Return ONLY the number, nothing else.`;
     const confirmedSoFar = extractConfirmedFromHistory();
     
     // Calculate ATS score using AI
-    console.log('Calculating ATS score with Lovable AI...');
+    console.log('Calculating ATS score with Gemini AI...');
     const currentATSScore = await calculateCurrentATSWithAI(
       jobDescription,
       resume,
       confirmedSoFar
     );
-    console.log('Lovable AI ATS Score:', currentATSScore);
+    console.log('Gemini AI ATS Score:', currentATSScore);
 
     const systemPrompt = `You are ResumeAI — a fast, credibility-checking, funny-but-serious resume generator.
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.
@@ -329,7 +342,7 @@ CRITICAL:
 - gapsIdentified should be skills from JD that are NOT on their resume.
 - When all gaps are addressed with complete experience details, set isComplete to true and provide summary.`;
 
-    // Build conversation for Lovable AI
+    // Build conversation for Gemini AI
     const messages: { role: string; content: string }[] = [
       { role: 'system', content: systemPrompt }
     ];
@@ -350,11 +363,11 @@ CRITICAL:
       });
     }
 
-    console.log('Calling Lovable AI with message count:', messages.length);
+    console.log('Calling Gemini AI with message count:', messages.length);
 
-    const aiResponse = await callLovableAI(messages);
+    const aiResponse = await callGeminiAI(messages);
 
-    console.log('Lovable AI response received:', aiResponse?.substring(0, 500));
+    console.log('Gemini AI response received:', aiResponse?.substring(0, 500));
 
     let parsedResponse;
     try {
@@ -410,13 +423,6 @@ CRITICAL:
     if (errorMessage === 'RATE_LIMIT') {
       return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }), {
         status: 429,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    
-    if (errorMessage === 'PAYMENT_REQUIRED') {
-      return new Response(JSON.stringify({ error: 'API credits exhausted. Please add credits to continue.' }), {
-        status: 402,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
