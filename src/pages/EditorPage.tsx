@@ -36,6 +36,12 @@ interface LocationState {
       title: string;
       company: string;
       bullets: string[];
+      date?: string;
+    }[];
+    education?: {
+      degree: string;
+      institution: string;
+      year?: string;
     }[];
     rawText?: string;
     name?: string;
@@ -51,9 +57,9 @@ interface LocationState {
 const fallbackJD = {
   title: "Senior Frontend Engineer",
   company: "TechCorp Inc.",
-  location: "San Francisco, CA (Hybrid)",
+  location: "Remote",
   type: "Full-time",
-  salary: "$150,000 - $200,000",
+  salary: "Competitive",
   skills: ["React", "TypeScript", "GraphQL", "React Native", "CI/CD", "Team Leadership"],
   description: "We are looking for a Senior Frontend Engineer to join our growing team.",
   responsibilities: [
@@ -86,8 +92,15 @@ const EditorPage: React.FC = () => {
   
   // Use data from interrogation flow or fallback
   const jd = locationState?.jobDescription ? {
-    ...fallbackJD,
-    ...locationState.jobDescription,
+    title: locationState.jobDescription.title || fallbackJD.title,
+    company: locationState.jobDescription.company || fallbackJD.company,
+    location: "Remote",
+    type: "Full-time", 
+    salary: "Competitive",
+    skills: locationState.jobDescription.skills || fallbackJD.skills,
+    description: locationState.jobDescription.rawText?.slice(0, 200) || fallbackJD.description,
+    responsibilities: locationState.jobDescription.responsibilities || fallbackJD.responsibilities,
+    requirements: locationState.jobDescription.requirements || fallbackJD.requirements,
   } : fallbackJD;
   
   const resumeData = locationState?.resume || fallbackResume;
@@ -97,15 +110,20 @@ const EditorPage: React.FC = () => {
   // Build initial experience from resume data AND add AI-enhanced bullets for confirmed skills
   const buildInitialExperience = () => {
     const experienceItems: { text: string; isModified: boolean }[] = [];
+    const addedBullets = new Set<string>(); // Track unique bullets
     
     // First, add ALL original experience bullets from the uploaded resume
     if (locationState?.resume?.experience) {
       for (const exp of locationState.resume.experience) {
         for (const bullet of exp.bullets) {
-          experienceItems.push({
-            text: bullet,
-            isModified: false, // Original content
-          });
+          const normalizedBullet = bullet.trim().toLowerCase();
+          if (!addedBullets.has(normalizedBullet)) {
+            addedBullets.add(normalizedBullet);
+            experienceItems.push({
+              text: bullet,
+              isModified: false, // Original content
+            });
+          }
         }
       }
     }
@@ -117,10 +135,15 @@ const EditorPage: React.FC = () => {
     );
     
     for (const skill of newSkills) {
-      experienceItems.push({
-        text: `Demonstrated proficiency in ${skill} through hands-on project implementation`,
-        isModified: true, // AI-added content
-      });
+      const bulletText = `Demonstrated proficiency in ${skill} through hands-on project implementation`;
+      const normalizedBullet = bulletText.trim().toLowerCase();
+      if (!addedBullets.has(normalizedBullet)) {
+        addedBullets.add(normalizedBullet);
+        experienceItems.push({
+          text: bulletText,
+          isModified: true, // AI-added content
+        });
+      }
     }
     
     // If no experience at all, provide placeholder
@@ -298,7 +321,8 @@ const EditorPage: React.FC = () => {
             <TabsContent value="resume" className="flex-1 p-4 overflow-y-auto">
               <ResumePanel 
                 resume={{ name: locationState?.resume?.name || 'Your Name', title: locationState?.resume?.title || 'Professional', skills: resumeData.skills }}
-                experience={experience} 
+                experience={experience}
+                education={locationState?.resume?.education}
                 onUpdateExperience={handleUpdateExperience}
                 jdSkills={jd.skills}
               />
@@ -320,7 +344,8 @@ const EditorPage: React.FC = () => {
           <div className="col-span-5 p-4 overflow-y-auto bg-background">
             <ResumePanel 
               resume={{ name: locationState?.resume?.name || 'Your Name', title: locationState?.resume?.title || 'Professional', skills: resumeData.skills }}
-              experience={experience} 
+              experience={experience}
+              education={locationState?.resume?.education}
               onUpdateExperience={handleUpdateExperience}
               jdSkills={jd.skills}
             />
@@ -374,19 +399,23 @@ const JDPanel: React.FC<JDPanelProps> = ({ jd, matchedSkills = [] }) => (
       <JoystickButton variant="primary" size="sm">
         <Briefcase className="w-4 h-4" />
       </JoystickButton>
-      <div>
-        <h2 className="font-bold text-foreground text-sm">{jd.title}</h2>
-        <p className="text-xs text-muted-foreground">{jd.company}</p>
+      <div className="min-w-0 flex-1">
+        <h2 className="font-bold text-foreground text-xs sm:text-sm truncate">{jd.title}</h2>
+        <p className="text-xs text-muted-foreground truncate">{jd.company}</p>
       </div>
     </div>
 
-    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-      <span className="px-2 py-1 bg-secondary rounded-md">{jd.location}</span>
-      <span className="px-2 py-1 bg-secondary rounded-md">{jd.type}</span>
-      <span className="px-2 py-1 bg-accent/10 text-accent rounded-md font-medium">{jd.salary}</span>
-    </div>
+    {(jd.location || jd.type || jd.salary) && (
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground">
+        {jd.location && <span className="px-2 py-1 bg-secondary rounded-md">{jd.location}</span>}
+        {jd.type && <span className="px-2 py-1 bg-secondary rounded-md">{jd.type}</span>}
+        {jd.salary && <span className="px-2 py-1 bg-accent/10 text-accent rounded-md font-medium">{jd.salary}</span>}
+      </div>
+    )}
 
-    <p className="text-xs text-foreground leading-relaxed">{jd.description}</p>
+    {jd.description && (
+      <p className="text-xs text-foreground leading-relaxed line-clamp-3">{jd.description}</p>
+    )}
 
     <div>
       <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">Key Skills</h4>
@@ -442,19 +471,20 @@ const JDPanel: React.FC<JDPanelProps> = ({ jd, matchedSkills = [] }) => (
 interface ResumePanelProps {
   resume: { name: string; title: string; skills: string[] };
   experience: { text: string; isModified: boolean }[];
+  education?: { degree: string; institution: string; year?: string }[];
   onUpdateExperience: (index: number, text: string) => void;
   jdSkills: string[];
 }
 
-const ResumePanel: React.FC<ResumePanelProps> = ({ resume, experience, onUpdateExperience, jdSkills }) => (
+const ResumePanel: React.FC<ResumePanelProps> = ({ resume, experience, education, onUpdateExperience, jdSkills }) => (
   <ControllerCard hasGlow className="space-y-5">
     <div className="flex items-center gap-3">
       <JoystickButton variant="primary" size="lg">
         <FileText className="w-6 h-6" />
       </JoystickButton>
-      <div>
-        <h2 className="font-bold text-foreground text-lg">{resume.name}</h2>
-        <p className="text-sm text-primary font-medium">{resume.title}</p>
+      <div className="min-w-0 flex-1">
+        <h2 className="font-bold text-foreground text-base sm:text-lg truncate">{resume.name}</h2>
+        <p className="text-xs sm:text-sm text-primary font-medium truncate">{resume.title}</p>
       </div>
     </div>
 
@@ -463,7 +493,7 @@ const ResumePanel: React.FC<ResumePanelProps> = ({ resume, experience, onUpdateE
         <span
           key={i}
           className={cn(
-            "px-3 py-1.5 rounded-lg text-xs font-semibold border",
+            "px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold border",
             jdSkills.some(jdSkill => 
               jdSkill.toLowerCase() === skill.toLowerCase()
             )
@@ -492,6 +522,21 @@ const ResumePanel: React.FC<ResumePanelProps> = ({ resume, experience, onUpdateE
         ))}
       </div>
     </div>
+
+    {education && education.length > 0 && (
+      <div>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Education</h3>
+        <div className="space-y-2">
+          {education.map((edu, i) => (
+            <div key={i} className="bg-secondary/50 rounded-lg p-3">
+              <p className="font-semibold text-foreground text-sm">{edu.degree}</p>
+              <p className="text-xs text-muted-foreground">{edu.institution}</p>
+              {edu.year && <p className="text-xs text-muted-foreground">{edu.year}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
   </ControllerCard>
 );
 

@@ -361,26 +361,29 @@ export const ResumeTemplateSelector: React.FC<ResumeTemplateSelectorProps> = ({
         </ScrollArea>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-border bg-secondary/30 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
+        <div className="px-4 sm:px-6 py-4 border-t border-border bg-secondary/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
             All templates are ATS-optimized for maximum compatibility
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <JoystickButton
               variant="neutral"
-              size="md"
+              size="sm"
               onClick={() => onOpenChange(false)}
+              className="flex-1 sm:flex-none"
             >
-              <X className="w-4 h-4 mr-2" />
-              Cancel
+              <X className="w-4 h-4" />
+              <span className="hidden sm:inline">Cancel</span>
             </JoystickButton>
             <JoystickButton
               variant="accent"
-              size="md"
+              size="sm"
               onClick={handleDownload}
+              className="flex-1 sm:flex-none"
             >
-              <Download className="w-4 h-4 mr-2" />
-              Download {templates.find(t => t.id === selectedTemplate)?.name}
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Download {templates.find(t => t.id === selectedTemplate)?.name}</span>
+              <span className="sm:hidden">Download</span>
             </JoystickButton>
           </div>
         </div>
