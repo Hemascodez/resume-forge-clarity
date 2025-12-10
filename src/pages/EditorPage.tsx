@@ -40,8 +40,8 @@ interface LocationState {
     }[];
     education?: {
       degree: string;
-      institution: string;
-      year?: string;
+      school: string;
+      date?: string;
     }[];
     rawText?: string;
     name?: string;
@@ -211,6 +211,7 @@ const EditorPage: React.FC = () => {
       experience,
       originalExperience: locationState?.resume?.experience,
       newExperience: newExperience,
+      education: locationState?.resume?.education,
     };
     
     try {
@@ -284,6 +285,7 @@ const EditorPage: React.FC = () => {
           skills: resumeData.skills,
           experience,
           originalExperience: locationState?.resume?.experience,
+          education: locationState?.resume?.education,
         }}
         jobTitle={jd.title}
         company={jd.company}
@@ -471,7 +473,7 @@ const JDPanel: React.FC<JDPanelProps> = ({ jd, matchedSkills = [] }) => (
 interface ResumePanelProps {
   resume: { name: string; title: string; skills: string[] };
   experience: { text: string; isModified: boolean }[];
-  education?: { degree: string; institution: string; year?: string }[];
+  education?: { degree: string; school: string; date?: string }[];
   onUpdateExperience: (index: number, text: string) => void;
   jdSkills: string[];
 }
@@ -530,8 +532,8 @@ const ResumePanel: React.FC<ResumePanelProps> = ({ resume, experience, education
           {education.map((edu, i) => (
             <div key={i} className="bg-secondary/50 rounded-lg p-3">
               <p className="font-semibold text-foreground text-sm">{edu.degree}</p>
-              <p className="text-xs text-muted-foreground">{edu.institution}</p>
-              {edu.year && <p className="text-xs text-muted-foreground">{edu.year}</p>}
+              <p className="text-xs text-muted-foreground">{edu.school}</p>
+              {edu.date && <p className="text-xs text-muted-foreground">{edu.date}</p>}
             </div>
           ))}
         </div>
