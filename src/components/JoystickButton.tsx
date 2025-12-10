@@ -66,7 +66,7 @@ export const JoystickButton: React.FC<JoystickButtonProps> = ({
       
       {/* Inner button with 3D effect */}
       <div className={cn(
-        "absolute inset-1.5 rounded-full bg-gradient-to-b flex items-center justify-center font-bold text-primary-foreground transition-all duration-200 whitespace-nowrap px-3",
+        "absolute inset-1.5 rounded-full bg-gradient-to-b flex items-center justify-center gap-1.5 font-bold text-primary-foreground transition-all duration-200 whitespace-nowrap px-3",
         style.inner,
         style.shadow,
         style.glow

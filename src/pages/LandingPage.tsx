@@ -72,7 +72,8 @@ const parseJobDescription = (text: string) => {
 // Resume parser - uses edge function for PDF/DOCX, falls back to text parsing
 const parseResume = async (file: File): Promise<{
   skills: string[];
-  experience: { title: string; company: string; bullets: string[] }[];
+  experience: { title: string; company: string; bullets: string[]; date?: string }[];
+  education?: { degree: string; institution: string; year?: string }[];
   rawText: string;
   name: string;
   title: string;
@@ -105,6 +106,7 @@ const parseResume = async (file: File): Promise<{
     return {
       skills: data.skills || [],
       experience: data.experience || [],
+      education: data.education || [],
       rawText: data.text || '',
       name: data.name || 'Your Name',
       title: data.title || 'Professional',
@@ -164,6 +166,7 @@ const parseResume = async (file: File): Promise<{
   return {
     skills,
     experience,
+    education: [],
     rawText: text.slice(0, 50000),
     name: candidateName || 'Your Name',
     title: candidateTitle || 'Professional',
