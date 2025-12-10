@@ -73,7 +73,7 @@ const parseJobDescription = (text: string) => {
 const parseResume = async (file: File): Promise<{
   skills: string[];
   experience: { title: string; company: string; bullets: string[]; date?: string }[];
-  education?: { degree: string; institution: string; year?: string }[];
+  education?: { degree: string; school: string; date?: string }[];
   rawText: string;
   name: string;
   title: string;
@@ -103,10 +103,25 @@ const parseResume = async (file: File): Promise<{
     
     const data = await response.json();
     
+    // Map education fields from API response (institution -> school, year -> date)
+    const mappedEducation = (data.education || []).map((edu: any) => ({
+      degree: edu.degree || '',
+      school: edu.institution || edu.school || '',
+      date: edu.year || edu.date || '',
+    }));
+
+    // Map experience fields from API response (duration -> date)
+    const mappedExperience = (data.experience || []).map((exp: any) => ({
+      title: exp.title || '',
+      company: exp.company || '',
+      bullets: exp.bullets || [],
+      date: exp.duration || exp.date || '',
+    }));
+    
     return {
       skills: data.skills || [],
-      experience: data.experience || [],
-      education: data.education || [],
+      experience: mappedExperience,
+      education: mappedEducation,
       rawText: data.text || '',
       name: data.name || 'Your Name',
       title: data.title || 'Professional',
