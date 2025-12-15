@@ -6,14 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function callOpenAI(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+async function callOpenAI(prompt: string, fileContent: string): Promise<string> {
   const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
   
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not configured');
   }
-
-  const dataUrl = `data:${mimeType};base64,${base64Data}`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -25,11 +23,12 @@ async function callOpenAI(prompt: string, base64Data: string, mimeType: string):
       model: 'gpt-5',
       messages: [
         {
+          role: 'system',
+          content: 'You are a resume parser that extracts structured information from resume text. Always respond with valid JSON only.'
+        },
+        {
           role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUrl } }
-          ]
+          content: `${prompt}\n\n--- RESUME CONTENT ---\n${fileContent}`
         }
       ],
       max_completion_tokens: 4096,
@@ -49,6 +48,90 @@ async function callOpenAI(prompt: string, base64Data: string, mimeType: string):
 
   const data = await response.json();
   return data.choices?.[0]?.message?.content || '';
+}
+
+// Extract text from PDF bytes (basic extraction)
+function extractTextFromPDF(bytes: Uint8Array): string {
+  try {
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    
+    // Extract text between stream markers in PDF
+    const textParts: string[] = [];
+    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/gi;
+    let match;
+    
+    while ((match = streamRegex.exec(text)) !== null) {
+      const content = match[1];
+      // Extract readable text (printable ASCII and common characters)
+      const readable = content.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (readable.length > 20) {
+        textParts.push(readable);
+      }
+    }
+    
+    // Also try to extract text objects (Tj, TJ operators)
+    const tjRegex = /\(([^)]+)\)\s*Tj/g;
+    while ((match = tjRegex.exec(text)) !== null) {
+      textParts.push(match[1]);
+    }
+    
+    // Extract any readable text content
+    const lines = text.split('\n');
+    for (const line of lines) {
+      const cleanLine = line.replace(/[^\x20-\x7E]/g, '').trim();
+      if (cleanLine.length > 30 && !cleanLine.includes('obj') && !cleanLine.includes('endobj')) {
+        textParts.push(cleanLine);
+      }
+    }
+    
+    const extractedText = textParts.join('\n').trim();
+    
+    if (extractedText.length < 100) {
+      // Fallback: just get all readable content
+      return text.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .substring(0, 15000)
+        .trim();
+    }
+    
+    return extractedText.substring(0, 15000);
+  } catch (e) {
+    console.error('PDF text extraction error:', e);
+    return '';
+  }
+}
+
+// Extract text from DOCX (basic XML extraction)
+function extractTextFromDOCX(bytes: Uint8Array): string {
+  try {
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    
+    // DOCX is a ZIP file, but we can try to extract readable XML content
+    const textParts: string[] = [];
+    
+    // Look for XML text content patterns
+    const textRegex = /<w:t[^>]*>([^<]+)<\/w:t>/g;
+    let match;
+    while ((match = textRegex.exec(text)) !== null) {
+      textParts.push(match[1]);
+    }
+    
+    // If we found XML content, join it
+    if (textParts.length > 0) {
+      return textParts.join(' ').substring(0, 15000);
+    }
+    
+    // Fallback: extract any readable content
+    return text.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .substring(0, 15000)
+      .trim();
+  } catch (e) {
+    console.error('DOCX text extraction error:', e);
+    return '';
+  }
 }
 
 serve(async (req) => {
@@ -72,17 +155,23 @@ serve(async (req) => {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    // Extract text based on file type
+    let extractedText = '';
+    const mimeType = file.type || 'application/pdf';
+    
+    if (mimeType.includes('pdf')) {
+      extractedText = extractTextFromPDF(bytes);
+    } else if (mimeType.includes('docx') || mimeType.includes('openxmlformats')) {
+      extractedText = extractTextFromDOCX(bytes);
+    } else {
+      // Try both methods
+      extractedText = extractTextFromPDF(bytes) || extractTextFromDOCX(bytes);
     }
-    const base64 = btoa(binary);
+    
+    console.log('Extracted text length:', extractedText.length);
+    console.log('Extracted text preview:', extractedText.substring(0, 500));
 
     console.log('Sending resume to OpenAI GPT-5 for parsing...');
-
-    const mimeType = file.type || 'application/pdf';
 
     const prompt = `You are a resume parser. Extract structured information from this resume.
             
@@ -123,9 +212,9 @@ Be thorough in extracting ALL skills, experience items, and achievements.
 If information is not available, use empty strings or empty arrays.
 ONLY respond with the JSON object, no other text.
 
-Parse this resume (${file.name}) and extract all information. The file is a ${file.type} document.`;
+Parse this resume (${file.name}):`;
 
-    const content = await callOpenAI(prompt, base64, mimeType);
+    const content = await callOpenAI(prompt, extractedText);
 
     console.log('AI response received, length:', content.length);
     console.log('AI response preview:', content.substring(0, 500));
