@@ -297,39 +297,40 @@ const LandingPage: React.FC = () => {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-6 md:px-12 py-6">
-        <div className="flex items-center gap-4">
-          <JoystickButton variant="primary" size="md">
-            <Zap className="w-6 h-6" />
+      <header className="relative z-10 flex items-center justify-between px-4 sm:px-6 md:px-12 py-4 sm:py-6">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <JoystickButton variant="primary" size="sm">
+            <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
           </JoystickButton>
-          <span className="text-2xl font-bold text-foreground">ResumeAI</span>
+          <span className="text-xl sm:text-2xl font-bold text-foreground">ResumeAI</span>
         </div>
         
         {/* Dashboard link */}
         <div className="flex items-center gap-4">
           <JoystickButton variant="accent" size="md" onClick={() => navigate("/dashboard")}>
-            <span className="text-sm font-semibold">My Resumes</span>
+            <FileText className="w-4 h-4 md:mr-1" />
+            <span className="text-sm font-semibold hidden md:inline">My Resumes</span>
           </JoystickButton>
         </div>
       </header>
 
       {/* Hero Section */}
-      <main className="relative z-10 container mx-auto px-6 md:px-12 py-8 md:py-16">
+      <main className="relative z-10 container mx-auto px-4 sm:px-6 md:px-12 py-6 sm:py-8 md:py-16">
         <div className="max-w-4xl mx-auto">
           {/* Hero Text */}
-          <div className="text-center mb-12 md:mb-16 animate-fade-in">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 mb-6">
-              <Sparkles className="w-4 h-4 text-accent" />
-              <span className="text-sm font-medium text-accent">
+          <div className="text-center mb-8 sm:mb-12 md:mb-16 animate-fade-in">
+            <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-accent/10 border border-accent/20 mb-4 sm:mb-6">
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-accent" />
+              <span className="text-xs sm:text-sm font-medium text-accent">
                 Human-in-the-Loop AI Verification
               </span>
             </div>
             
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-scribble font-bold mb-8 leading-tight text-foreground">
+            <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-scribble font-bold mb-5 sm:mb-8 leading-tight text-foreground px-2">
               Finally, an AI That Doesn't Lie on Your Resume
             </h1>
             
-            <div className="font-poppins text-base md:text-lg text-muted-foreground max-w-2xl mx-auto space-y-4">
+            <div className="font-poppins text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto space-y-3 sm:space-y-4 px-2">
               <p>
                 Most AI tools hallucinate harder than your ex's excuses — adding random skills you never learned.
               </p>
@@ -347,7 +348,7 @@ const LandingPage: React.FC = () => {
           </div>
 
           {/* Input Zones */}
-          <div className="grid md:grid-cols-2 gap-6 md:gap-8 mb-8 animate-slide-up" style={{ animationDelay: "0.1s" }}>
+          <div className="grid md:grid-cols-2 gap-5 sm:gap-6 md:gap-8 mb-6 sm:mb-8 animate-slide-up" style={{ animationDelay: "0.1s" }}>
             {/* Job Description Zone */}
             <div className="space-y-4">
               <label className="flex items-center gap-3 text-sm font-semibold text-foreground">
@@ -488,26 +489,27 @@ const LandingPage: React.FC = () => {
           <div className="text-center animate-slide-up" style={{ animationDelay: "0.2s" }}>
             <Button
               variant="hero"
-              size="xl"
+              size="lg"
               onClick={handleInitialize}
               disabled={!isReady || isProcessing}
-              className="group"
+              className="group w-full sm:w-auto"
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Analyzing...
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
+                  <span>Analyzing...</span>
                 </>
               ) : (
                 <>
-                  Initialize Analysis
-                  <ArrowRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                  <span>Initialize Analysis</span>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2 transition-transform group-hover:translate-x-1" />
                 </>
               )}
             </Button>
             
             {!isReady && (
-              <p className="text-sm text-muted-foreground mt-4">
+              <p className="text-xs sm:text-sm text-muted-foreground mt-3 sm:mt-4 px-4">
                 {!jobDescription.trim() && !resumeFile
                   ? "Paste a job description and upload your resume to begin"
                   : !jobDescription.trim() || jobDescription.length < 50
@@ -518,7 +520,7 @@ const LandingPage: React.FC = () => {
           </div>
 
           {/* Features with Controller Cards */}
-          <div className="grid md:grid-cols-3 gap-6 mt-16 md:mt-24 animate-fade-in" style={{ animationDelay: "0.3s" }}>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mt-10 sm:mt-16 md:mt-24 animate-fade-in" style={{ animationDelay: "0.3s" }}>
             {[
               {
                 icon: Shield,
@@ -545,13 +547,13 @@ const LandingPage: React.FC = () => {
                 className="text-center hover:-translate-y-2 transition-all duration-300"
               >
                 {/* Joystick-style 3D button */}
-                <div className="mx-auto mb-6 flex justify-center">
-                  <JoystickButton variant={feature.variant} size="lg">
-                    <feature.icon className="w-8 h-8" />
+                <div className="mx-auto mb-4 sm:mb-6 flex justify-center">
+                  <JoystickButton variant={feature.variant} size="md">
+                    <feature.icon className="w-6 h-6 sm:w-8 sm:h-8" />
                   </JoystickButton>
                 </div>
-                <h3 className="font-bold text-foreground mb-3 text-xl">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
+                <h3 className="font-bold text-foreground mb-2 sm:mb-3 text-lg sm:text-xl">{feature.title}</h3>
+                <p className="text-sm sm:text-base text-muted-foreground">{feature.description}</p>
               </ControllerCard>
             ))}
           </div>

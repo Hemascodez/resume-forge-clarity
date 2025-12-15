@@ -73,26 +73,26 @@ const DashboardPage = () => {
       <BackgroundBlobs variant="landing" />
 
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-6 md:px-12 py-6">
-        <div className="flex items-center gap-4 cursor-pointer" onClick={() => navigate("/")}>
-          <JoystickButton variant="primary" size="md">
-            <Zap className="w-6 h-6" />
+      <header className="relative z-10 flex items-center justify-between px-4 sm:px-6 md:px-12 py-4 sm:py-6">
+        <div className="flex items-center gap-3 sm:gap-4 cursor-pointer" onClick={() => navigate("/")}>
+          <JoystickButton variant="primary" size="sm">
+            <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
           </JoystickButton>
-          <span className="text-2xl font-bold text-foreground">ResumeAI</span>
+          <span className="text-xl sm:text-2xl font-bold text-foreground">ResumeAI</span>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 container mx-auto px-6 md:px-12 py-8">
+      <main className="relative z-10 container mx-auto px-4 sm:px-6 md:px-12 py-6 sm:py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">My Resumes</h1>
-              <p className="text-muted-foreground">Your tailored resumes and applications</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">My Resumes</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Your tailored resumes and applications</p>
             </div>
-            <Button onClick={() => navigate("/")} className="gap-2">
+            <Button onClick={() => navigate("/")} className="gap-2 self-start sm:self-auto">
               <Plus className="w-4 h-4" />
-              New Resume
+              <span>New Resume</span>
             </Button>
           </div>
 
@@ -110,7 +110,7 @@ const DashboardPage = () => {
                 </p>
                 <Button onClick={() => navigate("/")} className="gap-2">
                   <Plus className="w-4 h-4" />
-                  Create Your First Resume
+                  <span>Create Your First Resume</span>
                 </Button>
               </CardContent>
             </Card>
@@ -125,23 +125,23 @@ const DashboardPage = () => {
                     toast.info("Resume view coming soon!");
                   }}
                 >
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
-                          <FileText className="w-5 h-5 text-primary shrink-0" />
-                          <h3 className="font-semibold text-foreground truncate">
+                        <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                          <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+                          <h3 className="font-semibold text-foreground truncate text-sm sm:text-base">
                             {session.jd_title || "Untitled Position"}
                           </h3>
                         </div>
                         
-                        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1.5">
-                            <Building2 className="w-4 h-4" />
-                            <span>{session.jd_company || "Unknown Company"}</span>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1 sm:gap-1.5">
+                            <Building2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="truncate max-w-[120px] sm:max-w-none">{session.jd_company || "Unknown Company"}</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-4 h-4" />
+                          <div className="flex items-center gap-1 sm:gap-1.5">
+                            <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                             <span>{format(new Date(session.created_at), "MMM d, yyyy")}</span>
                           </div>
                           {session.new_ats_score && (
