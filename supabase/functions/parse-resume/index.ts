@@ -6,53 +6,49 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function callGeminiAIWithFile(prompt: string, base64Data: string, mimeType: string): Promise<string> {
-  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+async function callOpenAI(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
   
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured');
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured');
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+  const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      contents: [
+      model: 'gpt-5',
+      messages: [
         {
           role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data
-              }
-            }
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } }
           ]
         }
       ],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 4096,
-      }
+      max_completion_tokens: 4096,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Gemini API error:', response.status, errorText);
+    console.error('OpenAI API error:', response.status, errorText);
     
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
     }
     
-    throw new Error(`Gemini API error: ${response.status}`);
+    throw new Error(`OpenAI API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return data.choices?.[0]?.message?.content || '';
 }
 
 serve(async (req) => {
@@ -73,11 +69,9 @@ serve(async (req) => {
 
     console.log('Parsing file:', file.name, 'type:', file.type, 'size:', file.size);
 
-    // Convert file to base64 for AI processing (chunked to avoid stack overflow)
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     
-    // Chunk the conversion to avoid stack overflow on large files
     let binary = '';
     const chunkSize = 8192;
     for (let i = 0; i < bytes.length; i += chunkSize) {
@@ -86,9 +80,8 @@ serve(async (req) => {
     }
     const base64 = btoa(binary);
 
-    console.log('Sending resume to Gemini AI for parsing...');
+    console.log('Sending resume to OpenAI GPT-5 for parsing...');
 
-    // Determine mime type
     const mimeType = file.type || 'application/pdf';
 
     const prompt = `You are a resume parser. Extract structured information from this resume.
@@ -116,6 +109,13 @@ ALWAYS respond with a valid JSON object with these exact fields:
       "institution": "School/University name",
       "year": "Graduation year"
     }
+  ],
+  "projects": [
+    {
+      "name": "Project name",
+      "description": "Brief description",
+      "technologies": ["tech1", "tech2"]
+    }
   ]
 }
 
@@ -125,15 +125,13 @@ ONLY respond with the JSON object, no other text.
 
 Parse this resume (${file.name}) and extract all information. The file is a ${file.type} document.`;
 
-    const content = await callGeminiAIWithFile(prompt, base64, mimeType);
+    const content = await callOpenAI(prompt, base64, mimeType);
 
     console.log('AI response received, length:', content.length);
     console.log('AI response preview:', content.substring(0, 500));
 
-    // Parse the JSON response from AI
     let parsedResume;
     try {
-      // Clean up the response - remove markdown code blocks if present
       let cleanContent = content.trim();
       if (cleanContent.startsWith('```json')) {
         cleanContent = cleanContent.slice(7);
@@ -150,13 +148,13 @@ Parse this resume (${file.name}) and extract all information. The file is a ${fi
       console.error('Failed to parse AI response as JSON:', parseError);
       console.error('Raw content:', content);
       
-      // Fallback: try to extract basic info using regex
       parsedResume = {
         name: extractName(content),
         title: extractTitle(content),
         skills: extractSkills(content),
         experience: [],
         education: [],
+        projects: [],
         summary: '',
         email: '',
         phone: '',
@@ -164,7 +162,6 @@ Parse this resume (${file.name}) and extract all information. The file is a ${fi
       };
     }
 
-    // Build the raw text for the interrogation
     const rawText = buildRawText(parsedResume);
 
     console.log('Parsed resume - Name:', parsedResume.name, 'Title:', parsedResume.title, 'Skills:', parsedResume.skills?.length || 0);
@@ -175,6 +172,7 @@ Parse this resume (${file.name}) and extract all information. The file is a ${fi
       skills: parsedResume.skills || [],
       experience: parsedResume.experience || [],
       education: parsedResume.education || [],
+      projects: parsedResume.projects || [],
       name: parsedResume.name || 'Candidate',
       title: parsedResume.title || 'Professional',
       email: parsedResume.email || '',
@@ -204,7 +202,6 @@ Parse this resume (${file.name}) and extract all information. The file is a ${fi
   }
 });
 
-// Helper function to build raw text from parsed resume
 function buildRawText(resume: any): string {
   const parts: string[] = [];
   
@@ -237,11 +234,20 @@ function buildRawText(resume: any): string {
       parts.push(`${edu.degree} - ${edu.institution} (${edu.year || 'N/A'})`);
     }
   }
+
+  if (resume.projects?.length > 0) {
+    parts.push('\nProjects:');
+    for (const proj of resume.projects) {
+      parts.push(`${proj.name}: ${proj.description || ''}`);
+      if (proj.technologies?.length > 0) {
+        parts.push(`Technologies: ${proj.technologies.join(', ')}`);
+      }
+    }
+  }
   
   return parts.join('\n');
 }
 
-// Fallback extraction functions
 function extractName(text: string): string {
   const nameMatch = text.match(/"name"\s*:\s*"([^"]+)"/i);
   if (nameMatch) return nameMatch[1];

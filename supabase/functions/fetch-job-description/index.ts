@@ -6,44 +6,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function callGeminiAI(prompt: string): Promise<string> {
-  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+async function callOpenAI(prompt: string): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
   
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured');
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured');
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 4096,
-      }
+      model: 'gpt-5',
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 4096,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Gemini API error:', response.status, errorText);
+    console.error('OpenAI API error:', response.status, errorText);
     
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
     }
     
-    throw new Error(`Gemini API error: ${response.status}`);
+    throw new Error(`OpenAI API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return data.choices?.[0]?.message?.content || '';
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -60,7 +58,6 @@ serve(async (req) => {
 
     console.log('Fetching job description from URL:', url);
 
-    // Fetch the webpage content
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -76,7 +73,6 @@ serve(async (req) => {
     const html = await response.text();
     console.log('Fetched HTML length:', html.length);
 
-    // Check for login walls or blocked content
     const loginIndicators = [
       'sign in to view',
       'login to view',
@@ -98,7 +94,6 @@ serve(async (req) => {
       );
     }
 
-    // Use Gemini AI to extract job description from HTML
     const prompt = `You are a job description extractor. Extract the complete job description from the provided HTML content.
             
 Extract and return ONLY the job posting content including:
@@ -118,7 +113,7 @@ Extract the job description from this HTML:
 
 ${html.slice(0, 50000)}`;
 
-    const jobDescription = await callGeminiAI(prompt);
+    const jobDescription = await callOpenAI(prompt);
 
     console.log('Extracted job description length:', jobDescription.length);
 
