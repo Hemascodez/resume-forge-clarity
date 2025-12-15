@@ -6,132 +6,54 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function callOpenAI(prompt: string, fileContent: string): Promise<string> {
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+async function callLovableAI(prompt: string, base64Data: string, mimeType: string): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   
-  if (!OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is not configured');
+  if (!LOVABLE_API_KEY) {
+    throw new Error('LOVABLE_API_KEY is not configured');
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-5',
+      model: 'google/gemini-2.5-flash',
       messages: [
         {
-          role: 'system',
-          content: 'You are a resume parser that extracts structured information from resume text. Always respond with valid JSON only.'
-        },
-        {
           role: 'user',
-          content: `${prompt}\n\n--- RESUME CONTENT ---\n${fileContent}`
+          content: [
+            { type: 'text', text: prompt },
+            { 
+              type: 'image_url', 
+              image_url: { 
+                url: `data:${mimeType};base64,${base64Data}` 
+              } 
+            }
+          ]
         }
       ],
-      max_completion_tokens: 4096,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('OpenAI API error:', response.status, errorText);
+    console.error('Lovable AI API error:', response.status, errorText);
     
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
     }
+    if (response.status === 402) {
+      throw new Error('PAYMENT_REQUIRED');
+    }
     
-    throw new Error(`OpenAI API error: ${response.status}`);
+    throw new Error(`Lovable AI API error: ${response.status}`);
   }
 
   const data = await response.json();
   return data.choices?.[0]?.message?.content || '';
-}
-
-// Extract text from PDF bytes (basic extraction)
-function extractTextFromPDF(bytes: Uint8Array): string {
-  try {
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-    
-    // Extract text between stream markers in PDF
-    const textParts: string[] = [];
-    const streamRegex = /stream\s*([\s\S]*?)\s*endstream/gi;
-    let match;
-    
-    while ((match = streamRegex.exec(text)) !== null) {
-      const content = match[1];
-      // Extract readable text (printable ASCII and common characters)
-      const readable = content.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      if (readable.length > 20) {
-        textParts.push(readable);
-      }
-    }
-    
-    // Also try to extract text objects (Tj, TJ operators)
-    const tjRegex = /\(([^)]+)\)\s*Tj/g;
-    while ((match = tjRegex.exec(text)) !== null) {
-      textParts.push(match[1]);
-    }
-    
-    // Extract any readable text content
-    const lines = text.split('\n');
-    for (const line of lines) {
-      const cleanLine = line.replace(/[^\x20-\x7E]/g, '').trim();
-      if (cleanLine.length > 30 && !cleanLine.includes('obj') && !cleanLine.includes('endobj')) {
-        textParts.push(cleanLine);
-      }
-    }
-    
-    const extractedText = textParts.join('\n').trim();
-    
-    if (extractedText.length < 100) {
-      // Fallback: just get all readable content
-      return text.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .substring(0, 15000)
-        .trim();
-    }
-    
-    return extractedText.substring(0, 15000);
-  } catch (e) {
-    console.error('PDF text extraction error:', e);
-    return '';
-  }
-}
-
-// Extract text from DOCX (basic XML extraction)
-function extractTextFromDOCX(bytes: Uint8Array): string {
-  try {
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-    
-    // DOCX is a ZIP file, but we can try to extract readable XML content
-    const textParts: string[] = [];
-    
-    // Look for XML text content patterns
-    const textRegex = /<w:t[^>]*>([^<]+)<\/w:t>/g;
-    let match;
-    while ((match = textRegex.exec(text)) !== null) {
-      textParts.push(match[1]);
-    }
-    
-    // If we found XML content, join it
-    if (textParts.length > 0) {
-      return textParts.join(' ').substring(0, 15000);
-    }
-    
-    // Fallback: extract any readable content
-    return text.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .substring(0, 15000)
-      .trim();
-  } catch (e) {
-    console.error('DOCX text extraction error:', e);
-    return '';
-  }
 }
 
 serve(async (req) => {
@@ -155,25 +77,20 @@ serve(async (req) => {
     const arrayBuffer = await file.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     
-    // Extract text based on file type
-    let extractedText = '';
-    const mimeType = file.type || 'application/pdf';
-    
-    if (mimeType.includes('pdf')) {
-      extractedText = extractTextFromPDF(bytes);
-    } else if (mimeType.includes('docx') || mimeType.includes('openxmlformats')) {
-      extractedText = extractTextFromDOCX(bytes);
-    } else {
-      // Try both methods
-      extractedText = extractTextFromPDF(bytes) || extractTextFromDOCX(bytes);
+    // Convert to base64
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
     }
-    
-    console.log('Extracted text length:', extractedText.length);
-    console.log('Extracted text preview:', extractedText.substring(0, 500));
+    const base64 = btoa(binary);
 
-    console.log('Sending resume to OpenAI GPT-5 for parsing...');
+    console.log('Sending resume to Gemini for parsing...');
 
-    const prompt = `You are a resume parser. Extract structured information from this resume.
+    const mimeType = file.type || 'application/pdf';
+
+    const prompt = `You are a resume parser. Extract structured information from this resume document.
             
 ALWAYS respond with a valid JSON object with these exact fields:
 {
@@ -208,13 +125,11 @@ ALWAYS respond with a valid JSON object with these exact fields:
   ]
 }
 
-Be thorough in extracting ALL skills, experience items, and achievements.
+Be thorough in extracting ALL skills, experience items, and achievements from the document.
 If information is not available, use empty strings or empty arrays.
-ONLY respond with the JSON object, no other text.
+ONLY respond with the JSON object, no other text.`;
 
-Parse this resume (${file.name}):`;
-
-    const content = await callOpenAI(prompt, extractedText);
+    const content = await callLovableAI(prompt, base64, mimeType);
 
     console.log('AI response received, length:', content.length);
     console.log('AI response preview:', content.substring(0, 500));
@@ -280,6 +195,13 @@ Parse this resume (${file.name}):`;
     if (errorMessage === 'RATE_LIMIT') {
       return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }), {
         status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    if (errorMessage === 'PAYMENT_REQUIRED') {
+      return new Response(JSON.stringify({ error: 'AI credits exhausted. Please add funds.' }), {
+        status: 402,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
