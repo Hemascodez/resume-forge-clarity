@@ -119,37 +119,37 @@ const InterrogationPage: React.FC = () => {
       </div>
 
       {/* Header with Controller Style */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-4 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
+      <header className="relative z-10 flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="flex items-center gap-2 sm:gap-4">
           <JoystickButton variant="neutral" size="sm" onClick={() => navigate("/")}>
             <ArrowLeft className="w-4 h-4" />
           </JoystickButton>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <JoystickButton variant="primary" size="sm">
               <Zap className="w-4 h-4" />
             </JoystickButton>
-            <span className="font-bold text-foreground text-lg">Gap Analysis</span>
+            <span className="font-bold text-foreground text-sm sm:text-lg">Gap Analysis</span>
           </div>
         </div>
 
         {/* Progress indicator - Controller trigger style */}
-        <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2">
-            <MiniJoystick variant="accent" className="w-8 h-8" />
-            <span className="text-sm text-muted-foreground font-medium">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="hidden sm:flex items-center gap-2">
+            <MiniJoystick variant="accent" className="w-6 h-6 sm:w-8 sm:h-8" />
+            <span className="text-xs sm:text-sm text-muted-foreground font-medium">
               {confirmedSkills.length} verified
             </span>
           </div>
-          <div className="w-32 md:w-48">
+          <div className="w-24 sm:w-32 md:w-48">
             <TriggerProgress value={progress} />
           </div>
         </div>
       </header>
 
       {/* Chat Container */}
-      <main className="relative z-10 flex-1 container mx-auto max-w-3xl px-4 py-6 overflow-hidden flex flex-col">
+      <main className="relative z-10 flex-1 container mx-auto max-w-3xl px-3 sm:px-4 py-4 sm:py-6 overflow-hidden flex flex-col">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-4 pb-4 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto space-y-3 sm:space-y-4 pb-4 scrollbar-thin">
           {messages.map((message, index) => (
             <ChatMessage
               key={index}
@@ -164,44 +164,47 @@ const InterrogationPage: React.FC = () => {
         </div>
 
         {/* Quick Replies & Input - Controller Style */}
-        <ControllerCard className="space-y-4">
+        <ControllerCard className="space-y-3 sm:space-y-4">
           {!isComplete && !isLoading && messages.length > 0 && (
-            <div className="flex flex-wrap gap-3 justify-center">
-              <JoystickButton variant="accent" size="md" onClick={() => handleQuickReply("yes")}>
-                <Check className="w-5 h-5" />
+            <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
+              <JoystickButton variant="accent" size="sm" onClick={() => handleQuickReply("yes")}>
+                <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-xs sm:text-sm ml-1 hidden sm:inline">Yes</span>
               </JoystickButton>
               <JoystickButton
                 variant="neutral"
-                size="md"
+                size="sm"
                 onClick={() => handleQuickReply("no")}
                 className="border-destructive text-destructive"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-xs sm:text-sm ml-1 hidden sm:inline">No</span>
               </JoystickButton>
-              <JoystickButton variant="primary" size="md" onClick={() => handleQuickReply("edit")}>
-                <Edit3 className="w-5 h-5" />
+              <JoystickButton variant="primary" size="sm" onClick={() => handleQuickReply("edit")}>
+                <Edit3 className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="text-xs sm:text-sm ml-1 hidden sm:inline">Edit</span>
               </JoystickButton>
             </div>
           )}
 
-          <div className="flex gap-3">
-            <div className="flex-1 rounded-2xl bg-gradient-to-b from-muted to-secondary border-2 border-border p-1 shadow-[inset_0_4px_12px_rgba(0,0,0,0.08)]">
+          <div className="flex gap-2 sm:gap-3">
+            <div className="flex-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-muted to-secondary border-2 border-border p-1 shadow-[inset_0_4px_12px_rgba(0,0,0,0.08)]">
               <Input
                 placeholder="Type your response..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                 disabled={isLoading || isComplete}
-                className="border-0 bg-card/80 rounded-xl focus-visible:ring-0"
+                className="border-0 bg-card/80 rounded-lg sm:rounded-xl focus-visible:ring-0 text-sm sm:text-base"
               />
             </div>
             <JoystickButton
               variant="primary"
-              size="md"
+              size="sm"
               onClick={handleSendMessage}
               disabled={!inputValue.trim() || isLoading || isComplete}
             >
-              <Send className="w-5 h-5" />
+              <Send className="w-4 h-4 sm:w-5 sm:h-5" />
             </JoystickButton>
           </div>
         </ControllerCard>

@@ -236,32 +236,32 @@ const EditorPage: React.FC = () => {
         <JoystickController />
       </div>
 
-      <header className="relative z-10 flex items-center justify-between px-4 md:px-6 py-3 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
+      <header className="relative z-10 flex items-center justify-between px-3 sm:px-4 md:px-6 py-2 sm:py-3 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="flex items-center gap-2 sm:gap-3">
           <JoystickButton 
             variant="primary" 
             size="sm" 
             onClick={() => navigate("/")}
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4" />
           </JoystickButton>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <JoystickButton variant="primary" size="sm">
-              <Zap className="w-4 h-4" />
+              <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
             </JoystickButton>
-            <span className="font-bold text-foreground text-sm hidden md:inline">Final Review</span>
+            <span className="font-bold text-foreground text-xs sm:text-sm hidden sm:inline">Final Review</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {isCalculating ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="hidden md:inline">Calculating...</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground text-xs sm:text-sm">
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+              <span className="hidden sm:inline">Calculating...</span>
             </div>
           ) : (
             <>
-              <div className="hidden md:block">
+              <div className="hidden lg:block">
                 <DialKnob rotation={displayNewScore * 3.6} size="sm" />
               </div>
               <ATSScoreComparison oldScore={displayOldScore} newScore={displayNewScore} />
@@ -269,8 +269,8 @@ const EditorPage: React.FC = () => {
           )}
           
           <JoystickButton variant="accent" size="sm" onClick={() => setShowTemplateSelector(true)}>
-            <Download className="w-4 h-4 md:mr-2" />
-            <span className="font-semibold text-xs hidden md:inline">Download</span>
+            <Download className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="font-semibold text-xs hidden sm:inline ml-1">Download</span>
           </JoystickButton>
         </div>
       </header>
@@ -296,19 +296,22 @@ const EditorPage: React.FC = () => {
       <main className="relative z-10 flex-1 overflow-hidden">
         <div className="md:hidden h-full">
           <Tabs defaultValue="resume" className="h-full flex flex-col">
-            <TabsList className="mx-4 mt-3 bg-secondary rounded-xl h-10 p-1">
-              <TabsTrigger value="changes" className="flex-1 rounded-lg text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm">
-                Changes
+            <TabsList className="mx-3 sm:mx-4 mt-2 sm:mt-3 bg-secondary rounded-lg sm:rounded-xl h-9 sm:h-10 p-0.5 sm:p-1">
+              <TabsTrigger value="changes" className="flex-1 rounded-md sm:rounded-lg text-xs sm:text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-1 sm:gap-1.5">
+                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Changes</span>
               </TabsTrigger>
-              <TabsTrigger value="resume" className="flex-1 rounded-lg text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm">
-                Resume
+              <TabsTrigger value="resume" className="flex-1 rounded-md sm:rounded-lg text-xs sm:text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-1 sm:gap-1.5">
+                <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Resume</span>
               </TabsTrigger>
-              <TabsTrigger value="jd" className="flex-1 rounded-lg text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm">
-                JD
+              <TabsTrigger value="jd" className="flex-1 rounded-md sm:rounded-lg text-xs sm:text-sm data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-1 sm:gap-1.5">
+                <Briefcase className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">JD</span>
               </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="changes" className="flex-1 p-4 overflow-y-auto">
+            <TabsContent value="changes" className="flex-1 p-3 sm:p-4 overflow-y-auto">
               <ChangesPanel 
                 missing={displayMissing} 
                 added={displayAdded} 
@@ -317,10 +320,10 @@ const EditorPage: React.FC = () => {
                 isCalculating={isCalculating}
               />
             </TabsContent>
-            <TabsContent value="jd" className="flex-1 p-4 overflow-y-auto">
+            <TabsContent value="jd" className="flex-1 p-3 sm:p-4 overflow-y-auto">
               <JDPanel jd={jd} matchedSkills={matchedSkills} />
             </TabsContent>
-            <TabsContent value="resume" className="flex-1 p-4 overflow-y-auto">
+            <TabsContent value="resume" className="flex-1 p-3 sm:p-4 overflow-y-auto">
               <ResumePanel 
                 resume={{ name: locationState?.resume?.name || 'Your Name', title: locationState?.resume?.title || 'Professional', skills: resumeData.skills }}
                 experience={experience}
@@ -371,20 +374,20 @@ interface ChangesPanelProps {
 }
 
 const ChangesPanel: React.FC<ChangesPanelProps> = ({ missing, added, oldScore, newScore, isCalculating }) => (
-  <ControllerCard className="space-y-4">
-    <div className="flex items-center gap-3 mb-4">
-      <MiniJoystick variant="primary" className="w-10 h-10" />
-      <h3 className="text-sm font-bold text-foreground">Score Boost</h3>
+  <ControllerCard className="space-y-3 sm:space-y-4">
+    <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+      <MiniJoystick variant="primary" className="w-8 h-8 sm:w-10 sm:h-10" />
+      <h3 className="text-xs sm:text-sm font-bold text-foreground">Score Boost</h3>
     </div>
     {isCalculating ? (
       <div className="flex items-center justify-center py-4">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin text-primary" />
       </div>
     ) : (
       <TriggerProgress value={newScore} label={`${oldScore}% → ${newScore}%`} />
     )}
     <ChangesSummary missing={missing} added={added} />
-    <p className="text-xs text-muted-foreground">
+    <p className="text-[10px] sm:text-xs text-muted-foreground">
       Click any bullet point to edit manually.
     </p>
   </ControllerCard>
