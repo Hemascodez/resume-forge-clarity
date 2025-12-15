@@ -7,7 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Input validation schema with generous limits
 const RequestSchema = z.object({
   jobDescription: z.object({
     title: z.string().max(500, "Job title too long"),
@@ -35,54 +34,39 @@ const RequestSchema = z.object({
   userAnswer: z.string().max(5000, "Answer too long").nullable().optional(),
 });
 
-async function callGeminiAI(messages: { role: string; content: string }[]): Promise<string> {
-  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+async function callOpenAI(messages: { role: string; content: string }[]): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
   
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured');
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured');
   }
 
-  // Convert messages to Gemini format
-  const systemContent = messages.find(m => m.role === 'system')?.content || '';
-  const userMessages = messages.filter(m => m.role !== 'system');
-  
-  const contents = userMessages.map(msg => ({
-    role: msg.role === 'user' ? 'user' : 'model',
-    parts: [{ text: msg.content }]
-  }));
-
-  // Prepend system content to first user message if exists
-  if (systemContent && contents.length > 0) {
-    contents[0].parts[0].text = systemContent + '\n\n' + contents[0].parts[0].text;
-  }
-
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      contents,
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 4096,
-      }
+      model: 'gpt-5',
+      messages: messages,
+      max_completion_tokens: 4096,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Gemini API error:', response.status, errorText);
+    console.error('OpenAI API error:', response.status, errorText);
     
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
     }
     
-    throw new Error(`Gemini API error: ${response.status}`);
+    throw new Error(`OpenAI API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return data.choices?.[0]?.message?.content || '';
 }
 
 serve(async (req) => {
@@ -120,10 +104,8 @@ serve(async (req) => {
       resumeTitle: resume.title,
     });
 
-    // Determine if this is the first message (no conversation history and no user answer)
     const isFirstMessage = conversationHistory.length === 0 && !userAnswer;
 
-    // AI-powered ATS calculation using Gemini
     const calculateCurrentATSWithAI = async (
       jd: typeof jobDescription, 
       res: typeof resume,
@@ -171,7 +153,7 @@ Consider: skill overlap, keyword matches, experience relevance, and job title al
 Return ONLY the number, nothing else.`;
 
       try {
-        const content = await callGeminiAI([
+        const content = await callOpenAI([
           { role: 'user', content: prompt }
         ]);
         
@@ -189,14 +171,12 @@ Return ONLY the number, nothing else.`;
       }
     };
 
-    // Extract confirmed skills from conversation history
     const extractConfirmedFromHistory = (): string[] => {
       const confirmed: string[] = [...resume.skills];
       for (const msg of conversationHistory) {
         if (msg.role === 'user') {
           const content = msg.content.toLowerCase();
           if (content.includes('yes') || content.includes('add') || content.includes('have')) {
-            // Try to find skill mentions in the preceding assistant message
             const idx = conversationHistory.indexOf(msg);
             if (idx > 0) {
               const prevMsg = conversationHistory[idx - 1];
@@ -216,14 +196,13 @@ Return ONLY the number, nothing else.`;
 
     const confirmedSoFar = extractConfirmedFromHistory();
     
-    // Calculate ATS score using AI
-    console.log('Calculating ATS score with Gemini AI...');
+    console.log('Calculating ATS score with OpenAI GPT-5...');
     const currentATSScore = await calculateCurrentATSWithAI(
       jobDescription,
       resume,
       confirmedSoFar
     );
-    console.log('Gemini AI ATS Score:', currentATSScore);
+    console.log('OpenAI GPT-5 ATS Score:', currentATSScore);
 
     const systemPrompt = `You are ResumeAI — a fast, credibility-checking, funny-but-serious resume generator.
 Your job is to verify the user's experience, catch exaggerations politely, and create a clean, ATS-friendly updated resume using ONLY confirmed facts.
@@ -342,7 +321,6 @@ CRITICAL:
 - gapsIdentified should be skills from JD that are NOT on their resume.
 - When all gaps are addressed with complete experience details, set isComplete to true and provide summary.`;
 
-    // Build conversation for Gemini AI
     const messages: { role: string; content: string }[] = [
       { role: 'system', content: systemPrompt }
     ];
@@ -363,21 +341,19 @@ CRITICAL:
       });
     }
 
-    console.log('Calling Gemini AI with message count:', messages.length);
+    console.log('Calling OpenAI GPT-5 with message count:', messages.length);
 
-    const aiResponse = await callGeminiAI(messages);
+    const aiResponse = await callOpenAI(messages);
 
-    console.log('Gemini AI response received:', aiResponse?.substring(0, 500));
+    console.log('OpenAI GPT-5 response received:', aiResponse?.substring(0, 500));
 
     let parsedResponse;
     try {
-      // Try to extract JSON from the response
       const jsonMatch = aiResponse.match(/```json\n?([\s\S]*?)\n?```/) || 
                         aiResponse.match(/\{[\s\S]*\}/);
       const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : aiResponse;
       parsedResponse = JSON.parse(jsonStr);
       
-      // Ensure resumeSummary is populated
       if (!parsedResponse.resumeSummary) {
         parsedResponse.resumeSummary = {
           name: resume.name || 'Candidate',
@@ -388,7 +364,6 @@ CRITICAL:
       }
     } catch (parseError) {
       console.error('Failed to parse AI response as JSON:', parseError);
-      // Create a structured response from the raw text
       parsedResponse = {
         question: aiResponse,
         skillBeingProbed: 'general',

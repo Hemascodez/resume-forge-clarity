@@ -46,40 +46,39 @@ interface ATSScoreResponse {
   suggestions: string[];
 }
 
-async function callGeminiAI(prompt: string): Promise<string> {
-  const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+async function callOpenAI(prompt: string): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
   
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured');
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured');
   }
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 2048,
-      }
+      model: 'gpt-5',
+      messages: [{ role: 'user', content: prompt }],
+      max_completion_tokens: 2048,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Gemini API error:', response.status, errorText);
+    console.error('OpenAI API error:', response.status, errorText);
     
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
     }
     
-    throw new Error(`Gemini API error: ${response.status}`);
+    throw new Error(`OpenAI API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return data.choices?.[0]?.message?.content || '';
 }
 
 async function calculateATSWithAI(
@@ -151,13 +150,12 @@ Be realistic and accurate:
 
 Return ONLY the JSON object, no other text.`;
 
-  const content = await callGeminiAI(prompt);
+  const content = await callOpenAI(prompt);
   
   if (!content) {
-    throw new Error("No response from Gemini AI");
+    throw new Error("No response from OpenAI");
   }
 
-  // Parse the JSON from the response
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     console.error("Failed to parse AI response:", content);
@@ -166,7 +164,6 @@ Return ONLY the JSON object, no other text.`;
 
   const result = JSON.parse(jsonMatch[0]);
   
-  // Validate and sanitize the response
   return {
     total: Math.min(100, Math.max(0, Math.round(result.total || 50))),
     breakdown: {
@@ -206,16 +203,14 @@ serve(async (req) => {
 
     const { jobDescription, resume, confirmedSkills, tailoredExperience } = parseResult.data;
 
-    // Calculate original score (without confirmed skills)
-    console.log('Calculating original ATS score with Gemini AI...');
+    console.log('Calculating original ATS score with OpenAI GPT-5...');
     const originalScore = await calculateATSWithAI(
       jobDescription,
       resume,
-      [] // No additional skills for original
+      []
     );
     console.log('Original score:', originalScore.total);
 
-    // Prepare enhanced resume with confirmed skills and tailored experience
     let enhancedExperience = [...resume.experience];
     if (tailoredExperience && tailoredExperience.length > 0) {
       const tailoredBullets = tailoredExperience.map(e => e.text);
@@ -233,8 +228,7 @@ serve(async (req) => {
       }
     }
 
-    // Calculate new score with AI
-    console.log('Calculating enhanced ATS score with Gemini AI...');
+    console.log('Calculating enhanced ATS score with OpenAI GPT-5...');
     const newScore = await calculateATSWithAI(
       jobDescription,
       { ...resume, experience: enhancedExperience },
@@ -242,7 +236,6 @@ serve(async (req) => {
     );
     console.log('Enhanced score:', newScore.total);
     
-    // Ensure new score is always >= original score (since we added skills/experience)
     if (newScore.total < originalScore.total) {
       newScore.total = originalScore.total + Math.min(10, confirmedSkills.length * 2);
     }
