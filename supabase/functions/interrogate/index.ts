@@ -34,7 +34,8 @@ const RequestSchema = z.object({
   userAnswer: z.string().max(5000, "Answer too long").nullable().optional(),
 });
 
-async function callOpenAI(messages: { role: string; content: string }[]): Promise<string> {
+// Simple completion call for ATS scoring
+async function callOpenAICompletion(prompt: string): Promise<string> {
   const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
   
   if (!OPENAI_API_KEY) {
@@ -48,15 +49,49 @@ async function callOpenAI(messages: { role: string; content: string }[]): Promis
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'gpt-5',
-      messages: messages,
-      max_completion_tokens: 4096,
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 100,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error('OpenAI API error:', response.status, errorText);
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+// Use OpenAI Responses API with stored prompt
+async function callOpenAIWithStoredPrompt(input: Record<string, unknown>): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured');
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      input: input,
+      prompt: {
+        id: 'pmpt_69411727a8048197a0756c46c182deb3069790f9d97969ec',
+        version: '1',
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenAI Responses API error:', response.status, errorText);
     
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
@@ -66,7 +101,18 @@ async function callOpenAI(messages: { role: string; content: string }[]): Promis
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  // Extract text from the response output
+  const output = data.output || [];
+  for (const item of output) {
+    if (item.type === 'message' && item.content) {
+      for (const content of item.content) {
+        if (content.type === 'output_text') {
+          return content.text || '';
+        }
+      }
+    }
+  }
+  return '';
 }
 
 serve(async (req) => {
@@ -153,9 +199,7 @@ Consider: skill overlap, keyword matches, experience relevance, and job title al
 Return ONLY the number, nothing else.`;
 
       try {
-        const content = await callOpenAI([
-          { role: 'user', content: prompt }
-        ]);
+        const content = await callOpenAICompletion(prompt);
         
         const score = parseInt(content.trim(), 10);
         
@@ -389,31 +433,45 @@ CRITICAL RULES:
 - Help users understand what's actually strengthening their resume vs what gaps remain
 - Be encouraging but truthful - a realistic score is more valuable than an inflated one`;
 
-    const messages: { role: string; content: string }[] = [
-      { role: 'system', content: systemPrompt }
-    ];
-    
-    for (const msg of conversationHistory) {
-      messages.push({
-        role: msg.role === 'user' ? 'user' : 'assistant',
-        content: msg.content,
-      });
-    }
+    // Build conversation for stored prompt
+    const conversationForPrompt = conversationHistory.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content,
+    }));
 
-    if (userAnswer) {
-      messages.push({ role: 'user', content: userAnswer });
-    } else {
-      messages.push({ 
-        role: 'user', 
-        content: 'Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.' 
-      });
-    }
+    const userMessage = userAnswer || 'Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.';
 
-    console.log('Calling OpenAI GPT-5 with message count:', messages.length);
+    // Prepare input for stored prompt
+    const promptInput = {
+      resume_name: resume.name || 'Candidate',
+      resume_title: resume.title || 'Professional',
+      resume_skills: resume.skills.join(', '),
+      resume_experience: resume.experience.map(exp => 
+        `${exp.title} at ${exp.company}:\n${(exp.bullets || []).map(b => `• ${b}`).join('\n')}`
+      ).join('\n\n'),
+      resume_raw_text: resume.rawText || 'No raw text available',
+      jd_title: jobDescription.title,
+      jd_company: jobDescription.company,
+      jd_skills: jobDescription.skills.join(', '),
+      jd_requirements: jobDescription.requirements.join('; '),
+      jd_responsibilities: jobDescription.responsibilities.join('; '),
+      current_ats_score: currentATSScore,
+      confirmed_skills: confirmedSoFar.join(', ') || 'None yet',
+      rejected_skills: rejectedSkills.join(', ') || 'None yet',
+      gaps_identified: JSON.stringify(jobDescription.skills.filter(s => 
+        !resume.skills.some(rs => rs.toLowerCase().includes(s.toLowerCase())) &&
+        !confirmedSoFar.includes(s)
+      )),
+      is_first_message: isFirstMessage,
+      conversation_history: JSON.stringify(conversationForPrompt),
+      user_message: userMessage,
+    };
 
-    const aiResponse = await callOpenAI(messages);
+    console.log('Calling OpenAI Responses API with stored prompt');
 
-    console.log('OpenAI GPT-5 response received:', aiResponse?.substring(0, 500));
+    const aiResponse = await callOpenAIWithStoredPrompt(promptInput);
+
+    console.log('OpenAI response received:', aiResponse?.substring(0, 500));
 
     let parsedResponse;
     try {
