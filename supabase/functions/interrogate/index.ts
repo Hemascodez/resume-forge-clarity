@@ -66,9 +66,9 @@ async function callOpenAICompletion(prompt: string): Promise<string> {
 }
 
 // Use OpenAI Responses API with stored prompt
-async function callOpenAIWithStoredPrompt(variables: Record<string, unknown>, userMessage: string): Promise<string> {
+async function callOpenAIWithStoredPrompt(inputText: string): Promise<string> {
   const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  
+
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not configured');
   }
@@ -81,13 +81,10 @@ async function callOpenAIWithStoredPrompt(variables: Record<string, unknown>, us
     },
     body: JSON.stringify({
       model: 'gpt-4o',
-      input: [
-        { role: 'user', content: userMessage }
-      ],
+      input: inputText,
       prompt: {
         id: 'pmpt_69411727a8048197a0756c46c182deb3069790f9d97969ec',
         version: '1',
-        variables: variables,
       },
     }),
   });
@@ -95,17 +92,16 @@ async function callOpenAIWithStoredPrompt(variables: Record<string, unknown>, us
   if (!response.ok) {
     const errorText = await response.text();
     console.error('OpenAI Responses API error:', response.status, errorText);
-    
+
     if (response.status === 429) {
       throw new Error('RATE_LIMIT');
     }
-    
+
     throw new Error(`OpenAI API error: ${response.status}`);
   }
 
   const data = await response.json();
-  console.log('OpenAI Responses API response:', JSON.stringify(data).substring(0, 500));
-  
+
   // Extract text from the response output
   const output = data.output || [];
   for (const item of output) {
@@ -117,6 +113,7 @@ async function callOpenAIWithStoredPrompt(variables: Record<string, unknown>, us
       }
     }
   }
+
   return '';
 }
 
@@ -438,42 +435,18 @@ CRITICAL RULES:
 - Help users understand what's actually strengthening their resume vs what gaps remain
 - Be encouraging but truthful - a realistic score is more valuable than an inflated one`;
 
-    // Build conversation for stored prompt
-    const conversationForPrompt = conversationHistory.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.content,
-    }));
-
     const userMessage = userAnswer || 'Please analyze my resume against the job description. First confirm what you see in my resume, then identify the gaps, and ask your first clarifying question.';
 
-    // Prepare input for stored prompt
-    const promptVariables = {
-      resume_name: resume.name || 'Candidate',
-      resume_title: resume.title || 'Professional',
-      resume_skills: resume.skills.join(', '),
-      resume_experience: resume.experience.map(exp => 
-        `${exp.title} at ${exp.company}:\n${(exp.bullets || []).map(b => `• ${b}`).join('\n')}`
-      ).join('\n\n'),
-      resume_raw_text: resume.rawText || 'No raw text available',
-      jd_title: jobDescription.title,
-      jd_company: jobDescription.company,
-      jd_skills: jobDescription.skills.join(', '),
-      jd_requirements: jobDescription.requirements.join('; '),
-      jd_responsibilities: jobDescription.responsibilities.join('; '),
-      current_ats_score: String(currentATSScore),
-      confirmed_skills: confirmedSoFar.join(', ') || 'None yet',
-      rejected_skills: rejectedSkills.join(', ') || 'None yet',
-      gaps_identified: JSON.stringify(jobDescription.skills.filter(s => 
-        !resume.skills.some(rs => rs.toLowerCase().includes(s.toLowerCase())) &&
-        !confirmedSoFar.includes(s)
-      )),
-      is_first_message: String(isFirstMessage),
-      conversation_history: JSON.stringify(conversationForPrompt),
-    };
+    const gapsIdentified = jobDescription.skills.filter(s =>
+      !resume.skills.some(rs => rs.toLowerCase().includes(s.toLowerCase())) &&
+      !confirmedSoFar.includes(s)
+    );
+
+    const inputText = `USER_MESSAGE:\n${userMessage}\n\nCURRENT_STATE:\nATS_SCORE: ${currentATSScore}%\nCONFIRMED_SKILLS: ${confirmedSoFar.join(', ') || 'None yet'}\nREJECTED_SKILLS: ${rejectedSkills.join(', ') || 'None yet'}\nGAPS_IDENTIFIED: ${JSON.stringify(gapsIdentified)}\n\nCONVERSATION_HISTORY:\n${conversationHistory.map(m => `[${m.role}] ${m.content}`).join('\n')}\n\nRESUME_DATA:\nNAME: ${resume.name || 'Not extracted'}\nCURRENT TITLE: ${resume.title || 'Not extracted'}\nSKILLS: ${resume.skills.length > 0 ? resume.skills.join(', ') : 'None extracted'}\n\nEXPERIENCE:\n${resume.experience.length > 0 ? resume.experience.map(exp => `${exp.title} at ${exp.company}\n${(exp.bullets || []).map(b => `• ${b}`).join('\n')}`).join('\n\n') : 'No experience bullets extracted'}\n\nRAW_RESUME_TEXT:\n${resume.rawText || 'No raw text available'}\n\nJOB_DESCRIPTION:\nTITLE: ${jobDescription.title}\nCOMPANY: ${jobDescription.company}\nSKILLS: ${jobDescription.skills.join(', ')}\nREQUIREMENTS: ${jobDescription.requirements.join('; ')}\nRESPONSIBILITIES: ${jobDescription.responsibilities.join('; ')}\n\nFIRST_MESSAGE: ${isFirstMessage}`;
 
     console.log('Calling OpenAI Responses API with stored prompt');
 
-    const aiResponse = await callOpenAIWithStoredPrompt(promptVariables, userMessage);
+    const aiResponse = await callOpenAIWithStoredPrompt(inputText);
 
     console.log('OpenAI response received:', aiResponse?.substring(0, 500));
 
