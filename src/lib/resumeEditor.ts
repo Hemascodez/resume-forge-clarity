@@ -1488,7 +1488,7 @@ const generatePdfResume = (
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(11);
       pdf.setTextColor('#1a1a1a');
-      pdf.text(`${exp.title} @ ${exp.company}`, margin, yPos);
+      pdf.text(`${exp.title || 'Position'} @ ${exp.company || 'Company'}`, margin, yPos);
       yPos += 5;
 
       // Date
@@ -1500,17 +1500,20 @@ const generatePdfResume = (
         yPos += 5;
       }
 
-      // Original bullets
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(10);
-      for (const bullet of exp.bullets) {
-        if (yPos > 275) {
-          pdf.addPage();
-          yPos = margin;
+      // Original bullets - with null check
+      const bullets = exp.bullets || [];
+      if (bullets.length > 0) {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(10);
+        for (const bullet of bullets) {
+          if (yPos > 275) {
+            pdf.addPage();
+            yPos = margin;
+          }
+          pdf.setTextColor('#444444');
+          yPos = addWrappedText(`• ${bullet}`, margin + 3, yPos, contentWidth - 6, 10, '#444444');
+          yPos += 2;
         }
-        pdf.setTextColor('#444444');
-        yPos = addWrappedText(`• ${bullet}`, margin + 3, yPos, contentWidth - 6, 10, '#444444');
-        yPos += 2;
       }
       yPos += 4;
     }
@@ -1520,6 +1523,8 @@ const generatePdfResume = (
   // These should be properly formatted experience entries, not generic bullets
   const newExperienceEntries = resumeData.newExperience || [];
   for (const exp of newExperienceEntries) {
+    if (!exp) continue;
+    
     if (yPos > 265) {
       pdf.addPage();
       yPos = margin;
@@ -1529,7 +1534,7 @@ const generatePdfResume = (
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(11);
     pdf.setTextColor('#1a1a1a');
-    pdf.text(`${exp.title} @ ${exp.company}`, margin, yPos);
+    pdf.text(`${exp.title || 'Position'} @ ${exp.company || 'Company'}`, margin, yPos);
     yPos += 5;
     
     if (exp.date) {
@@ -1540,17 +1545,20 @@ const generatePdfResume = (
       yPos += 5;
     }
     
-    // Bullets - same style as original
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(10);
-    for (const bullet of exp.bullets) {
-      if (yPos > 275) {
-        pdf.addPage();
-        yPos = margin;
+    // Bullets - with null check
+    const bullets = exp.bullets || [];
+    if (bullets.length > 0) {
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      for (const bullet of bullets) {
+        if (yPos > 275) {
+          pdf.addPage();
+          yPos = margin;
+        }
+        pdf.setTextColor('#444444');
+        yPos = addWrappedText(`• ${bullet}`, margin + 3, yPos, contentWidth - 6, 10, '#444444');
+        yPos += 2;
       }
-      pdf.setTextColor('#444444');
-      yPos = addWrappedText(`• ${bullet}`, margin + 3, yPos, contentWidth - 6, 10, '#444444');
-      yPos += 2;
     }
     yPos += 4;
   }
