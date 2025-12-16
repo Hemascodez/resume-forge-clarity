@@ -11,10 +11,10 @@ const RequestSchema = z.object({
   jobDescription: z.object({
     title: z.string().max(500, "Job title too long"),
     company: z.string().max(500, "Company name too long"),
-    skills: z.array(z.string().max(200)).max(50, "Too many skills"),
-    requirements: z.array(z.string().max(1000)).max(30, "Too many requirements"),
-    responsibilities: z.array(z.string().max(1000)).max(30, "Too many responsibilities"),
-    rawText: z.string().max(50000).optional(),
+    skills: z.array(z.string().max(500)).max(50, "Too many skills"),
+    requirements: z.array(z.string().max(5000)).max(30, "Too many requirements"),
+    responsibilities: z.array(z.string().max(5000)).max(30, "Too many responsibilities"),
+    rawText: z.string().max(100000).optional(),
   }),
   resume: z.object({
     skills: z.array(z.string().max(200)).max(100, "Too many skills"),
